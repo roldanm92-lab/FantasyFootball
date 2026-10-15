@@ -1,0 +1,565 @@
+<title>MVP Trade Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: league strip and tab bar on top; each tab is a stack of panels; player card opens as a side sheet. */
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --ink:#14213a; --muted:#5b6880; --line:#d6dce6;
+  --accent:#e6b000; --accent-ink:#3a2c00; --chip:#e5eaf2;
+  --good:#1f8a4c; --good-bg:#e3f4ea; --bad:#c23b3b; --bad-bg:#fbe7e7; --even:#56637a; --even-bg:#e8ecf2;
+  --heat-lo:#f6d9d9; --heat-hi:#d6efe0; --shade:rgba(10,18,32,.35);
+  --f-display:"Saira Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1624; --panel:#172134; --ink:#e6ebf4; --muted:#93a0b8; --line:#2a3750;
+  --accent:#f2c230; --accent-ink:#2a2000; --chip:#223049;
+  --good:#4cc47e; --good-bg:#16301f; --bad:#ef6b6b; --bad-bg:#3a1c1f; --even:#9aa7bd; --even-bg:#222e44;
+  --heat-lo:#3a1f24; --heat-hi:#17342a; --shade:rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1624; --panel:#172134; --ink:#e6ebf4; --muted:#93a0b8; --line:#2a3750;
+  --accent:#f2c230; --accent-ink:#2a2000; --chip:#223049;
+  --good:#4cc47e; --good-bg:#16301f; --bad:#ef6b6b; --bad-bg:#3a1c1f; --even:#9aa7bd; --even-bg:#222e44;
+  --heat-lo:#3a1f24; --heat-hi:#17342a; --shade:rgba(0,0,0,.55); color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;display:grid;gap:16px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;letter-spacing:.01em}
+h1{font-size:34px;font-weight:800;line-height:1}
+h2{font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+h3{font-size:17px;font-weight:700}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.league{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{background:var(--chip);border-radius:4px;padding:3px 8px;font-size:12px;font-weight:500}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:2px solid var(--line);scrollbar-width:thin}
+nav.tabs button{border:none;background:none;border-radius:0;padding:10px 12px;font-family:var(--f-display);font-weight:700;font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0;display:grid;gap:12px;align-content:start}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media (max-width:760px){.grid2,.grid3{grid-template-columns:1fr}}
+.field{display:grid;gap:4px;min-width:0}
+select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:0}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 12px}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.linkish{border:none;background:none;padding:0;color:var(--ink);font-weight:500;text-align:left;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.linkish:hover{text-decoration-color:var(--accent)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+td.r,th.r{text-align:right}
+tr.mine td{background:var(--chip)}
+.up{color:var(--good)}.down{color:var(--bad)}
+.chip{display:inline-block;min-width:26px;text-align:center;border-radius:4px;padding:1px 6px;font-family:var(--f-mono);font-size:12px;font-weight:500}
+.g-A,.g-B{background:var(--good-bg);color:var(--good)}.g-C{background:var(--even-bg);color:var(--even)}.g-D,.g-F{background:var(--bad-bg);color:var(--bad)}
+.m-good{background:var(--good-bg);color:var(--good)}.m-mid{background:var(--even-bg);color:var(--even)}.m-bad{background:var(--bad-bg);color:var(--bad)}
+.inj{font-size:11px;font-weight:600;color:var(--bad);margin-left:6px}
+.stat{display:grid;gap:2px;border-top:2px solid var(--line);padding-top:6px}
+.stat b{font-family:var(--f-mono);font-weight:500;font-size:19px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+.alert{border-left:4px solid var(--accent);background:var(--chip);padding:10px 12px;border-radius:4px}
+.empty{color:var(--muted);font-size:13px;padding:10px;border:1px dashed var(--line);border-radius:6px}
+.notes{display:grid;gap:6px;margin:0;padding-left:18px}
+/* trade analyzer */
+.side-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.total{font-size:22px;font-weight:500}
+.assets{display:grid;gap:6px;min-height:44px}
+.asset{display:grid;grid-template-columns:38px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:6px}
+.pos{font-family:var(--f-display);font-weight:700;font-size:15px;text-align:center;border-radius:4px;background:var(--chip);padding:2px 0}
+.nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.sub{font-size:12px;color:var(--muted)}
+.val{text-align:right}
+.x{border:none;background:none;color:var(--muted);padding:2px 6px;font-size:16px;line-height:1}
+.est{font-size:10px;color:var(--muted);margin-left:4px}
+.pen{font-size:12px;color:var(--bad)}
+.adder{position:relative}
+.adder input{width:100%;box-sizing:border-box}
+.menu{position:absolute;z-index:5;left:0;right:0;top:100%;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:6px;max-height:280px;overflow:auto;box-shadow:0 8px 24px var(--shade)}
+.menu button{display:flex;justify-content:space-between;gap:8px;width:100%;border:none;border-bottom:1px solid var(--line);border-radius:0;text-align:left;padding:8px 10px}
+.menu button:hover,.menu button:focus-visible{background:var(--chip)}
+.verdict{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px}
+@media (max-width:760px){.verdict{grid-template-columns:1fr}}
+.badge{display:inline-block;font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1;padding:6px 12px;border-radius:6px;justify-self:start}
+.tone-good{background:var(--good-bg);color:var(--good)}.tone-bad{background:var(--bad-bg);color:var(--bad)}.tone-even{background:var(--even-bg);color:var(--even)}
+.gauge{position:relative;height:30px;border-radius:4px;overflow:hidden;display:grid;grid-template-columns:45fr 3fr 4fr 3fr 45fr}
+.z1{background:var(--bad-bg)}.z2{background:var(--bad-bg);opacity:.6}.z3{background:var(--even-bg)}.z4{background:var(--good-bg);opacity:.6}.z5{background:var(--good-bg)}
+.needle{position:absolute;top:0;bottom:0;width:4px;margin-left:-2px;background:var(--accent);box-shadow:0 0 0 1px var(--accent-ink)}
+.gauge-scale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+/* lineup */
+.slots{display:grid;gap:6px}
+.slot{display:grid;grid-template-columns:52px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:7px 10px;border:1px solid var(--line);border-radius:6px}
+.slot .sl{font-family:var(--f-display);font-weight:700;font-size:14px;color:var(--muted)}
+.slot.change{border-color:var(--accent)}
+/* finder cards */
+.deals{display:grid;gap:10px}
+.deal{border:1px solid var(--line);border-radius:6px;padding:12px;display:grid;gap:8px}
+.deal-top{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:baseline}
+.deal-sides{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:560px){.deal-sides{grid-template-columns:1fr}}
+/* heat table */
+td.heat{font-family:var(--f-mono);text-align:right}
+/* player sheet */
+.sheet-bg{position:fixed;inset:0;background:var(--shade);z-index:20}
+.psheet{position:fixed;z-index:21;top:0;right:0;bottom:0;width:min(440px,100%);box-sizing:border-box;background:var(--panel);border-left:1px solid var(--line);overflow:auto;
+  padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px;align-content:start}
+.bars{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;align-items:end;height:110px}
+.bar{display:grid;gap:3px;align-content:end;justify-items:center;font-size:11px;height:100%}
+.bar i{display:block;width:100%;background:var(--ink);border-radius:3px 3px 0 0;opacity:.75}
+.bar.proj i{background:var(--accent);opacity:1}
+.explain{display:grid;gap:8px;font-size:13px;color:var(--muted);max-width:75ch}
+.explain p{margin:0}
+details summary{cursor:pointer;font-weight:600;color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){.needle{transition:left .35s ease}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div style="display:grid;gap:6px">
+      <span class="label" id="leagueName">MVP FOOTBALL</span>
+      <h1>MVP Trade Lab</h1>
+    </div>
+    <div class="league">
+      <label class="label" for="me">Viewing as</label>
+      <select id="me"></select>
+    </div>
+  </header>
+  <div class="league" id="leagueTags"></div>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="hub">League Hub</button>
+    <button role="tab" data-tab="lineup">Sit / Start</button>
+    <button role="tab" data-tab="matchups">Matchups</button>
+    <button role="tab" data-tab="rankings">Rankings</button>
+    <button role="tab" data-tab="finder">Trade Finder</button>
+    <button role="tab" data-tab="trade">Trade Analyzer</button>
+  </nav>
+
+  <section id="tab-hub" class="tabpane" hidden></section>
+  <section id="tab-lineup" class="tabpane" hidden></section>
+  <section id="tab-matchups" class="tabpane" hidden></section>
+  <section id="tab-rankings" class="tabpane" hidden></section>
+  <section id="tab-finder" class="tabpane" hidden></section>
+
+  <section id="tab-trade" class="tabpane" hidden>
+    <div style="display:grid;gap:16px">
+      <div class="panel"><div class="row">
+        <div class="field"><label class="label" for="partner">Trading with</label><select id="partner"></select></div>
+        <button id="clear" type="button">Clear trade</button>
+        <span class="muted small" id="tradeNote"></span>
+      </div></div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="side-head"><h2>You send</h2><span class="total num" id="giveTotal">0</span></div>
+          <div class="assets" id="giveList"></div>
+          <div class="adder"><input id="giveSearch" placeholder="Add a player or pick from your roster" autocomplete="off" aria-label="Add from your roster"><div class="menu" id="giveMenu" hidden></div></div>
+        </div>
+        <div class="panel">
+          <div class="side-head"><h2>You receive</h2><span class="total num" id="getTotal">0</span></div>
+          <div class="assets" id="getList"></div>
+          <div class="adder"><input id="getSearch" placeholder="Add from their roster" autocomplete="off" aria-label="Add from their roster"><div class="menu" id="getMenu" hidden></div></div>
+        </div>
+      </div>
+      <div class="panel verdict" id="result" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <details>
+      <summary>How the numbers work</summary>
+      <div class="explain" style="margin-top:6px">
+        <p><strong>Projections.</strong> Sleeper's weekly projections for weeks 6–18, re-scored with MVP FOOTBALL settings: full PPR, 6-pt passing TDs, +0.5 per TE catch, and expected 100/200-yd and 300/400-yd bonuses. Past games use actual stats with the same scoring.</p>
+        <p><strong>Rankings.</strong> Value over replacement. Replacement level at each position is set by how many players the 12 teams actually start there (superflex and both flex spots included).</p>
+        <p><strong>Matchups.</strong> Fantasy points each defense has allowed per game to each position in weeks 1–5, in your league's scoring. Matchup score runs 10 (toughest) to 100 (softest).</p>
+        <p><strong>Trade value.</strong> Dynasty market values for 12-team superflex PPR (FantasyCalc). Values marked <em>est</em> are outside that feed's top 100 and estimated from DynastyProcess values on the same scale. 2nd and 3rd round pick values are estimates.</p>
+        <p><strong>Trade grade.</strong> A player who would not start for his new team counts 30% less. Trade edge is value received divided by all value in the deal: 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass.</p>
+        <p><strong>Trade Finder.</strong> Tests every 1-for-1, 2-for-1 and 1-for-2 deal between your top players and 1st/2nd-round picks and each team's top players. It keeps deals graded 48–60% for you, so the other side is not asked to take a lopsided loss. Position rooms are ranked by your top 2 QB, 3 RB, 4 WR and 1 TE.</p><p><strong>Estimated values.</strong> Players outside the market feed's top 100 are estimated from RotoBot's league-wide player scores where available (fit to market values), otherwise from DynastyProcess values.</p>
+        <p id="asof"></p>
+      </div>
+    </details>
+  </section>
+</div>
+<div id="sheetRoot"></div>
+
+<script>/*DATA*/</script>
+<script>/*ENGINE*/</script>
+<script>/*ENGINE2*/</script>
+<script>
+(function(){
+  var D=window.LEAGUE_DATA, byId={};
+  D.players.forEach(function(p){ byId[p.id]=p; });
+  D.picks.forEach(function(k){ k.kind='pick'; byId[k.id]=k; });
+  var state={ me:String(D.me), tab:'hub', partner:null, give:[], get:[], rkMode:'ros', rkPos:'ALL', rkFA:false, rkQ:'', goal:'balanced', finder:null, cmpA:null, cmpB:null };
+  var HUB=SUITE.hub(D);
+
+  // ---------- helpers
+  function el(tag,attrs,text){ var e=document.createElement(tag); if(attrs) for(var k in attrs){ if(attrs[k]!=null) e.setAttribute(k,attrs[k]); } if(text!=null) e.textContent=text; return e; }
+  function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+  function f1(n){ return (Math.round(n*10)/10).toFixed(1); }
+  function ord(n){ var s=['th','st','nd','rd'],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
+  function teamName(id){ var t=D.teams[id]; return t?(t.name||t.user):'Free agent'; }
+  function pickLabel(k){ return k.s+' '+['','1st','2nd','3rd'][k.rd]+(k.tag?' ('+k.tag+')':'')+(k.orig!=k.o?' · via '+teamName(k.orig):''); }
+  function ppg(p){ return p.g?p.r/p.g:0; }
+  function nameBtn(p){ var b=el('button',{type:'button',class:'linkish'},p.n); b.addEventListener('click',function(){ openPlayer(p.id); }); var w=el('span'); w.appendChild(b); if(p.inj) w.appendChild(el('span',{class:'inj'},p.inj)); return w; }
+  function mchip(p){ var m=SUITE.matchup(D,p); if(!m) return el('span',{class:'muted small'},p.p==='DEF'?(p.op?'vs '+p.op:''):'—'); var c=m.score>=65?'m-good':m.score<=35?'m-bad':'m-mid'; return el('span',{class:'chip '+c,title:p.op+' allows '+m.pg+' pts/g to '+p.p},String(m.score)); }
+  function table(head, rows, opts){
+    var tw=el('div',{class:'tw'}), t=el('table'), hr=el('tr');
+    head.forEach(function(h){ hr.appendChild(el('th',h.r?{class:'r'}:null,h.t)); }); t.appendChild(hr);
+    rows.forEach(function(r){ var tr=el('tr',r.cls?{class:r.cls}:null); r.cells.forEach(function(c,i){ var td=el('td',head[i].r?{class:'r'+(c&&c.num?' num':'')}:null); if(c&&c.node) td.appendChild(c.node); else td.textContent=(c&&c.t!=null)?c.t:(c==null?'':c); if(c&&c.cls) td.className=(td.className+' '+c.cls).trim(); tr.appendChild(td); }); t.appendChild(tr); });
+    tw.appendChild(t); return tw;
+  }
+  function stat(lbl,val,cls){ var s=el('div',{class:'stat'}); s.appendChild(el('span',{class:'label'},lbl)); s.appendChild(el('b',cls?{class:cls}:null,val)); return s; }
+  function panel(title, sub){ var p=el('div',{class:'panel'}); var h=el('div',{style:'display:grid;gap:2px'}); h.appendChild(el('h2',null,title)); if(sub) h.appendChild(el('span',{class:'muted small'},sub)); p.appendChild(h); return p; }
+
+  // ---------- header
+  document.getElementById('leagueName').textContent=D.league.name+' · Sleeper';
+  ['12 teams','Dynasty','Superflex','Full PPR','6-pt pass TD','TE +0.5','Yardage bonuses','Week '+D.week].forEach(function(t){ document.getElementById('leagueTags').appendChild(el('span',{class:'tag'},t)); });
+  document.getElementById('asof').textContent='Data pulled '+D.asofLabel+' from Sleeper (rosters, lineups, projections, stats), FantasyCalc and DynastyProcess (values). Ask Claude to refresh it.';
+  var meSel=document.getElementById('me');
+  Object.keys(D.teams).forEach(function(id){ meSel.appendChild(el('option',{value:id},teamName(id)+(D.teams[id].name!==D.teams[id].user?' ('+D.teams[id].user+')':''))); });
+  meSel.value=state.me;
+  meSel.addEventListener('change',function(){ state.me=meSel.value; state.give=[]; state.get=[]; state.finder=null; state.fpos=null; state.cmpA=state.cmpB=null; fillPartners(); renderAll(); });
+
+  // ---------- tabs
+  var tabBtns=[].slice.call(document.querySelectorAll('#tabs button'));
+  function showTab(t){ state.tab=t; tabBtns.forEach(function(b){ b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false'); }); document.querySelectorAll('.tabpane').forEach(function(p){ p.hidden=p.id!=='tab-'+t; }); try{ localStorage.setItem('mvp-tab',t); }catch(e){} }
+  tabBtns.forEach(function(b){ b.addEventListener('click',function(){ showTab(b.dataset.tab); }); });
+
+  // ---------- League Hub
+  function renderHub(){
+    var root=document.getElementById('tab-hub'); root.innerHTML='';
+    var wrap=el('div',{style:'display:grid;gap:16px'}); root.appendChild(wrap);
+    var h=HUB[state.me], t=D.teams[state.me], ss=SUITE.sitStart(D,state.me);
+    var top=panel(teamName(state.me), h.mode);
+    var st=el('div',{class:'stats'});
+    st.appendChild(stat('Record',t.w+'-'+t.l));
+    st.appendChild(stat('Points for',fmt(t.pf)));
+    st.appendChild(stat('Lineup strength',ord(h.lineupRank)+' of 12'));
+    st.appendChild(stat('Dynasty value',ord(h.valueRank)+' of 12'));
+    st.appendChild(stat('Week '+D.week+' projection',f1(ss.currentPts)));
+    top.appendChild(st);
+    var gr=el('div',{class:'row'}); SUITE.POS.forEach(function(pos){ var g=el('div',{style:'display:flex;gap:6px;align-items:center'}); g.appendChild(el('span',{class:'label'},pos)); g.appendChild(el('span',{class:'chip g-'+h.grades[pos]},h.grades[pos])); g.appendChild(el('span',{class:'muted small'},ord(h.posRank[pos]))); gr.appendChild(g); });
+    top.appendChild(gr);
+    var alerts=[];
+    if(ss.ins.length) alerts.push('Your Sleeper lineup is '+f1(ss.bestPts-ss.currentPts)+' projected points short this week. Start '+ss.ins.map(function(p){return p.n;}).join(', ')+' over '+ss.outs.map(function(p){return p.n;}).join(', ')+'.');
+    else alerts.push('Your Sleeper lineup for Week '+D.week+' already matches the best projected lineup.');
+    var hurt=ss.roster.filter(function(p){ return p.inj && p.st; });
+    if(hurt.length) alerts.push('Starters with an injury status: '+hurt.map(function(p){return p.n+' ('+p.inj+')';}).join(', ')+'.');
+    var N=SUITE.needs(D,state.me);
+    alerts.push('Biggest need: '+N.need.join(', then ')+'. Surplus to deal from: '+N.surplus+' ('+ord(N.ranks[N.surplus])+' in the league). Trade Finder can target the need.');
+    alerts.forEach(function(a){ top.appendChild(el('div',{class:'alert'},a)); });
+    wrap.appendChild(top);
+
+    var stand=panel('Standings and team outlook','Lineup strength = best starting lineup by rest-of-season points per game. Dynasty value = all players and picks.');
+    var ids=Object.keys(D.teams).sort(function(a,b){ var A=D.teams[a],B=D.teams[b]; return (B.w-A.w)||(B.pf-A.pf); });
+    stand.appendChild(table(
+      [{t:'#'},{t:'Team'},{t:'W-L',r:1},{t:'PF',r:1},{t:'Lineup',r:1},{t:'Value',r:1},{t:'QB'},{t:'RB'},{t:'WR'},{t:'TE'},{t:'Outlook'}],
+      ids.map(function(id,i){ var x=HUB[id], T=D.teams[id];
+        function g(pos){ return {node:el('span',{class:'chip g-'+x.grades[pos]},x.grades[pos])}; }
+        return {cls:id===state.me?'mine':null,cells:[String(i+1),teamName(id),{t:T.w+'-'+T.l,num:1},{t:fmt(T.pf),num:1},{t:ord(x.lineupRank),num:1},{t:ord(x.valueRank),num:1},g('QB'),g('RB'),g('WR'),g('TE'),x.mode]};
+      })));
+    wrap.appendChild(stand);
+
+    var ros=panel('Your roster','Sorted by dynasty value. Tap a name for the full player card.');
+    var mine=D.players.filter(function(p){ return String(p.o)===state.me && p.p!=='DEF'; }).sort(function(a,b){ return b.v-a.v; });
+    ros.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Age',r:1},{t:'Value',r:1},{t:'ROS pts',r:1},{t:'Wk '+D.week,r:1},{t:'Matchup',r:1},{t:'Starting'}],
+      mine.map(function(p){ return {cells:[p.p,{node:nameBtn(p)},{t:p.a||'',num:1},{t:fmt(p.v)+(p.s==='est'?'*':''),num:1},{t:fmt(p.r),num:1},{t:f1(p.w),num:1},{node:mchip(p)},p.st?'Yes':'']}; })));
+    ros.appendChild(el('span',{class:'muted small'},'* estimated value'));
+    wrap.appendChild(ros);
+  }
+
+  // ---------- Sit / Start
+  var SLOTS=['QB','RB','RB','WR','WR','TE','FLEX','FLEX','SF','DEF'];
+  function arrange(list){ // place chosen players into named slots
+    var left=list.slice().sort(function(a,b){ return b.w-a.w; }), out=[];
+    function take(ok){ for(var i=0;i<left.length;i++){ if(ok(left[i])){ return left.splice(i,1)[0]; } } return null; }
+    SLOTS.forEach(function(s){
+      var p= s==='FLEX'?take(function(x){return ['RB','WR','TE'].indexOf(x.p)>=0;}) : s==='SF'?take(function(x){return x.p!=='DEF';}) : take(function(x){return x.p===s;});
+      out.push({slot:s,p:p});
+    });
+    return out;
+  }
+  function renderLineup(){
+    var root=document.getElementById('tab-lineup'); root.innerHTML='';
+    var wrap=el('div',{style:'display:grid;gap:16px'}); root.appendChild(wrap);
+    var ss=SUITE.sitStart(D,state.me);
+    var best=ss.roster.filter(function(p){ return ss.best.ids[p.id]; });
+    var top=panel('Week '+D.week+' best lineup', 'Projected '+f1(ss.bestPts)+' pts. Your Sleeper lineup projects '+f1(ss.currentPts)+'.');
+    if(ss.ins.length){ top.appendChild(el('div',{class:'alert'},'Change '+ss.outs.length+' spot'+(ss.outs.length>1?'s':'')+': start '+ss.ins.map(function(p){return p.n+' ('+f1(p.w)+')';}).join(', ')+' and bench '+ss.outs.map(function(p){return p.n+' ('+f1(p.w)+')';}).join(', ')+'.')); }
+    else top.appendChild(el('div',{class:'alert'},'No changes needed. Your current Sleeper lineup is the best projected lineup.'));
+    var slots=el('div',{class:'slots'});
+    arrange(best).forEach(function(s){
+      var row=el('div',{class:'slot'+(s.p&&!s.p.st?' change':'')});
+      row.appendChild(el('span',{class:'sl'},s.slot));
+      var mid=el('div',{style:'min-width:0'});
+      if(s.p){ mid.appendChild(nameBtn(s.p)); mid.appendChild(el('div',{class:'sub'},s.p.p+' · '+s.p.t+(s.p.op?' vs '+s.p.op:'')+(s.p.st?'':' · not in your Sleeper lineup'))); }
+      else mid.appendChild(el('span',{class:'muted'},'Empty'));
+      row.appendChild(mid);
+      row.appendChild(s.p?mchip(s.p):el('span'));
+      row.appendChild(el('span',{class:'num'},s.p?f1(s.p.w):''));
+      slots.appendChild(row);
+    });
+    top.appendChild(slots);
+    wrap.appendChild(top);
+
+    var bench=panel('Bench','Projected points this week, best first.');
+    var bl=ss.roster.filter(function(p){ return !ss.best.ids[p.id]; }).sort(function(a,b){ return b.w-a.w; });
+    bench.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Opp'},{t:'Matchup',r:1},{t:'Proj',r:1},{t:'Last 5 avg',r:1}],
+      bl.map(function(p){ var f=SUITE.form(p); return {cells:[p.p,{node:nameBtn(p)},p.op||'BYE',{node:mchip(p)},{t:f1(p.w),num:1},{t:f?f1(f.avg):'—',num:1}]}; })));
+    wrap.appendChild(bench);
+
+    // compare
+    var cmp=panel('Compare two players','Pick any two players on your roster.');
+    var opts=ss.roster.filter(function(p){ return p.p!=='DEF'; }).sort(function(a,b){ return b.w-a.w; });
+    if(!state.cmpA&&opts[0]) state.cmpA=opts[0].id; if(!state.cmpB&&opts[1]) state.cmpB=opts[1].id;
+    var row=el('div',{class:'row'});
+    ['cmpA','cmpB'].forEach(function(k,i){ var f=el('div',{class:'field'}); f.appendChild(el('label',{class:'label',for:k},i?'Player B':'Player A')); var s=el('select',{id:k}); opts.forEach(function(p){ s.appendChild(el('option',{value:p.id},p.p+' · '+p.n)); }); s.value=state[k]; s.addEventListener('change',function(){ state[k]=s.value; renderLineup(); }); f.appendChild(s); row.appendChild(f); });
+    cmp.appendChild(row);
+    var A=byId[state.cmpA], B=byId[state.cmpB];
+    if(A&&B){
+      var fa=SUITE.form(A), fb=SUITE.form(B), ma=SUITE.matchup(D,A), mb=SUITE.matchup(D,B);
+      function lines(p,f,m){ return [p.n, p.op?p.t+' vs '+p.op:'Bye', f1(p.w), m?m.score+' ('+ord(33-m.tough)+' softest)':'—', f?f1(f.avg):'—', f?f1(f.lo)+' – '+f1(f.hi):'—', f1(ppg(p))]; }
+      var la=lines(A,fa,ma), lb=lines(B,fb,mb), labels=['Player','Game','Week '+D.week+' projection','Matchup score','Last 5 avg','Range (last 5)','ROS pts/game'];
+      cmp.appendChild(table([{t:''},{t:'A'},{t:'B'}], labels.map(function(l,i){ return {cells:[{node:el('span',{class:'label'},l)},la[i],lb[i]]}; })));
+      var diff=A.w-B.w, pick=Math.abs(diff)<0.8?'Too close to call on projections. Lean on the better matchup: '+((ma?ma.score:0)>=(mb?mb.score:0)?A.n:B.n)+'.':'Start '+(diff>0?A.n:B.n)+', projected '+f1(Math.abs(diff))+' points better.';
+      cmp.appendChild(el('div',{class:'alert'},pick));
+    }
+    wrap.appendChild(cmp);
+  }
+
+  // ---------- Matchups
+  function renderMatchups(){
+    var root=document.getElementById('tab-matchups'); root.innerHTML='';
+    var wrap=el('div',{style:'display:grid;gap:16px'}); root.appendChild(wrap);
+    var ss=SUITE.sitStart(D,state.me);
+    var mine=panel('Your starters this week','Matchup score 10 = toughest defense for that position, 100 = softest.');
+    var starters=ss.roster.filter(function(p){ return ss.best.ids[p.id] && p.p!=='DEF'; }).sort(function(a,b){ var ma=SUITE.matchup(D,a),mb=SUITE.matchup(D,b); return (mb?mb.score:0)-(ma?ma.score:0); });
+    mine.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Opp'},{t:'Score',r:1},{t:'Pts allowed/g',r:1},{t:'Defense rank'}],
+      starters.map(function(p){ var m=SUITE.matchup(D,p); return {cells:[p.p,{node:nameBtn(p)},p.op||'BYE',{node:mchip(p)},{t:m?f1(m.pg):'—',num:1},m?ord(m.tough)+' toughest':'—']}; })));
+    wrap.appendChild(mine);
+
+    var dv=panel('Points allowed by position','Per game, weeks 1–5, in your league’s scoring. Green is soft, red is tough.');
+    var teams=Object.keys(D.dvp).sort();
+    var ext={}; SUITE.POS.forEach(function(pos){ var xs=teams.map(function(t){ return D.dvp[t][pos].pg; }); ext[pos]=[Math.min.apply(null,xs),Math.max.apply(null,xs)]; });
+    var tw=el('div',{class:'tw'}), t=el('table'), hr=el('tr');
+    ['Defense','QB','RB','WR','TE','Next opp week '+D.week].forEach(function(h,i){ hr.appendChild(el('th',i&&i<5?{class:'r'}:null,h)); }); t.appendChild(hr);
+    teams.forEach(function(team){ var tr=el('tr'); tr.appendChild(el('td',null,team));
+      SUITE.POS.forEach(function(pos){ var v=D.dvp[team][pos].pg, e=ext[pos], f=(v-e[0])/(e[1]-e[0]); var td=el('td',{class:'heat',title:ord(D.dvp[team][pos].tough)+' toughest vs '+pos},f1(v)); td.style.background='color-mix(in srgb, var(--heat-hi) '+Math.round(f*100)+'%, var(--heat-lo))'; tr.appendChild(td); });
+      var opp=(D.sched[team]||{})[String(D.week)]; tr.appendChild(el('td',{class:'muted'},opp?'faces '+opp:'bye')); t.appendChild(tr); });
+    tw.appendChild(t); dv.appendChild(tw); wrap.appendChild(dv);
+  }
+
+  // ---------- Rankings
+  var RK={ros:SUITE.rankings(D,'ros'),week:SUITE.rankings(D,'week')};
+  function renderRankings(){
+    var root=document.getElementById('tab-rankings'); root.innerHTML='';
+    var p=panel('Rankings for your league','Ranked by value over replacement in MVP FOOTBALL scoring, not raw points.');
+    var row=el('div',{class:'row'});
+    function sel(id,label,opts,val,on){ var f=el('div',{class:'field'}); f.appendChild(el('label',{class:'label',for:id},label)); var s=el('select',{id:id}); opts.forEach(function(o){ s.appendChild(el('option',{value:o[0]},o[1])); }); s.value=val; s.addEventListener('change',function(){ on(s.value); renderRankings(); }); f.appendChild(s); row.appendChild(f); }
+    sel('rkMode','Window',[['ros','Rest of season'],['week','Week '+D.week]],state.rkMode,function(v){ state.rkMode=v; });
+    sel('rkPos','Position',[['ALL','All'],['QB','QB'],['RB','RB'],['WR','WR'],['TE','TE'],['FLEX','Flex (RB/WR/TE)']],state.rkPos,function(v){ state.rkPos=v; });
+    sel('rkFA','Players',[['all','Everyone'],['fa','Free agents only'],['mine','My roster']],state.rkFA||'all',function(v){ state.rkFA=v; });
+    var q=el('div',{class:'field'}); q.appendChild(el('label',{class:'label',for:'rkQ'},'Search')); var qi=el('input',{id:'rkQ',placeholder:'Name or team',value:state.rkQ}); qi.addEventListener('input',function(){ state.rkQ=qi.value; draw(); }); q.appendChild(qi); row.appendChild(q);
+    p.appendChild(row);
+    var R=RK[state.rkMode]; var r=R.repl;
+    p.appendChild(el('span',{class:'muted small'},'Replacement level ('+(state.rkMode==='ros'?'pts/game':'pts this week')+'): QB '+f1(r.QB)+' · RB '+f1(r.RB)+' · WR '+f1(r.WR)+' · TE '+f1(r.TE)+'. Teams start '+R.counts.QB+' QB, '+R.counts.RB+' RB, '+R.counts.WR+' WR, '+R.counts.TE+' TE league-wide.'));
+    var box=el('div'); p.appendChild(box); root.appendChild(p);
+    function draw(){
+      box.innerHTML='';
+      var qq=state.rkQ.trim().toLowerCase(), f=state.rkFA||'all';
+      var rows=R.rows.filter(function(x){ var pl=x.p;
+        if(state.rkPos==='FLEX'){ if(pl.p==='QB') return false; } else if(state.rkPos!=='ALL' && pl.p!==state.rkPos) return false;
+        if(f==='fa' && pl.o) return false; if(f==='mine' && String(pl.o)!==state.me) return false;
+        if(qq && (pl.n+' '+pl.t).toLowerCase().indexOf(qq)<0) return false; return true; }).slice(0,200);
+      var lastTier=null;
+      box.appendChild(table([{t:'#',r:1},{t:'Tier',r:1},{t:'Player'},{t:'Pos'},{t:'Team'},{t:state.rkMode==='ros'?'ROS pts':'Proj',r:1},{t:'Over repl.',r:1},{t:'Value',r:1},{t:'Owner'}],
+        rows.map(function(x){ var pl=x.p, tierCell=x.tier!==lastTier?String(x.tier):''; lastTier=x.tier;
+          return {cls:String(pl.o)===state.me?'mine':null,cells:[{t:x.rank,num:1},{t:tierCell,num:1},{node:nameBtn(pl)},x.posRank,pl.t,{t:f1(x.pts),num:1},{t:f1(x.vor),num:1},{t:fmt(pl.v)+(pl.s==='est'?'*':''),num:1},pl.o?teamName(pl.o):'Free agent']}; })));
+      if(!rows.length) box.appendChild(el('div',{class:'empty'},'No players match.'));
+    }
+    draw();
+  }
+
+  // ---------- Trade Finder
+  function renderFinder(){
+    var root=document.getElementById('tab-finder'); root.innerHTML='';
+    var N=SUITE.needs(D,state.me);
+    var p=panel('Trade Finder','Searches 1-for-1, 2-for-1 and 1-for-2 deals with all 11 other teams and keeps the ones a fair-minded manager could accept.');
+    var st=el('div',{class:'stats'});
+    SUITE.POS.forEach(function(pos){ st.appendChild(stat(pos+' room',ord(N.ranks[pos])+' of 12')); });
+    st.appendChild(stat('Biggest need',N.need.join(' · then ')));
+    st.appendChild(stat('Surplus to deal from',N.surplus));
+    p.appendChild(st);
+    if(!state.fmode) state.fmode='position';
+    if(!state.fpos) state.fpos=N.need[0];
+    var row=el('div',{class:'row'});
+    var mf=el('div',{class:'field'}); mf.appendChild(el('label',{class:'label',for:'fmode'},'What do you want to do?'));
+    var ms=el('select',{id:'fmode'}); [['position','Improve a position'],['target','Trade for a player'],['shop','Shop one of my players'],['balanced','Best overall: win the trade, keep your lineup'],['win-now','Best overall: improve this season'],['value','Best overall: gain dynasty value']].forEach(function(o){ ms.appendChild(el('option',{value:o[0]},o[1])); });
+    ms.value=state.fmode; ms.addEventListener('change',function(){ state.fmode=ms.value; state.finder=null; renderFinder(); }); mf.appendChild(ms); row.appendChild(mf);
+    var sub=el('div',{class:'field'});
+    if(state.fmode==='position'){ sub.appendChild(el('label',{class:'label',for:'fpos'},'Position')); var ps=el('select',{id:'fpos'}); SUITE.POS.forEach(function(pos){ ps.appendChild(el('option',{value:pos},pos+' (you rank '+ord(N.ranks[pos])+')')); }); ps.value=state.fpos; ps.addEventListener('change',function(){ state.fpos=ps.value; state.finder=null; renderFinder(); }); sub.appendChild(ps); row.appendChild(sub); }
+    if(state.fmode==='target'){ sub.appendChild(el('label',{class:'label',for:'ftarget'},'Player to get')); var ts=el('select',{id:'ftarget'}); D.players.filter(function(x){ return x.o && String(x.o)!==state.me && x.p!=='DEF' && x.v>=300; }).sort(function(a,b){ return b.v-a.v; }).forEach(function(x){ ts.appendChild(el('option',{value:x.id},x.p+' · '+x.n+' · '+teamName(x.o))); }); if(!state.ftarget||!byId[state.ftarget]||String(byId[state.ftarget].o)===state.me) state.ftarget=ts.options[0]&&ts.options[0].value; ts.value=state.ftarget; ts.addEventListener('change',function(){ state.ftarget=ts.value; state.finder=null; renderFinder(); }); sub.appendChild(ts); row.appendChild(sub); }
+    if(state.fmode==='shop'){ sub.appendChild(el('label',{class:'label',for:'fshop'},'Player to shop')); var ss=el('select',{id:'fshop'}); D.players.filter(function(x){ return String(x.o)===state.me && x.p!=='DEF' && x.v>=300; }).sort(function(a,b){ return b.v-a.v; }).forEach(function(x){ ss.appendChild(el('option',{value:x.id},x.p+' · '+x.n+' · '+fmt(x.v))); }); if(!state.fshop||!byId[state.fshop]||String(byId[state.fshop].o)!==state.me) state.fshop=ss.options[0]&&ss.options[0].value; ss.value=state.fshop; ss.addEventListener('change',function(){ state.fshop=ss.value; state.finder=null; renderFinder(); }); sub.appendChild(ss); row.appendChild(sub); }
+    var go=el('button',{type:'button',class:'primary'},state.finder?'Search again':'Find trades'); row.appendChild(go);
+    p.appendChild(row);
+    var box=el('div',{class:'deals'}); p.appendChild(box); root.appendChild(p);
+    function why(r){
+      var b=[], gl=r.get.filter(function(a){return a.p;});
+      b.push((r.myGain>=0?'Your starting lineup gains ':'Your starting lineup loses ')+f1(Math.abs(r.myGain))+' projected pts/week.');
+      if(r.room){ var x=r.room;
+        if(x.myBefore!==x.myAfter) b.push('Your '+x.pos+' room moves from '+ord(x.myBefore)+' to '+ord(x.myAfter)+' in the league.');
+        if(x.theirBefore!==x.theirAfter) b.push('Their '+x.pos+' room moves from '+ord(x.theirBefore)+' to '+ord(x.theirAfter)+'.'); }
+      b.push(r.theirGain>=0?'Their lineup gains '+f1(r.theirGain)+' pts/week, so the deal helps them too.':'Their lineup loses '+f1(-r.theirGain)+' pts/week. They would be trading this season for dynasty value.');
+      var sp=r.give.filter(function(a){return a.p===N.surplus;}); if(sp.length) b.push('Pays with your surplus at '+N.surplus+'.');
+      return b;
+    }
+    function show(){
+      box.innerHTML='';
+      if(!state.finder){ box.appendChild(el('div',{class:'empty'},'Choose what you want and press Find trades.')); return; }
+      if(!state.finder.length){ box.appendChild(el('div',{class:'empty'},'Nothing fair-looking turned up for that. Try another position, player or goal.')); return; }
+      state.finder.forEach(function(r){
+        var d=el('div',{class:'deal'}), top=el('div',{class:'deal-top'});
+        var t=D.teams[r.team]; top.appendChild(el('h3',null,'With '+teamName(r.team)+' ('+t.w+'-'+t.l+')'));
+        var v=ENGINE.verdict(r.edge); top.appendChild(el('span',{class:'chip tone-'+v.tone},v.label+' · '+f1(r.edge)+'%'));
+        d.appendChild(top);
+        var sides=el('div',{class:'deal-sides'});
+        [['You receive',r.get],['You send',r.give]].forEach(function(sd){ var c=el('div'); c.appendChild(el('span',{class:'label'},sd[0])); sd[1].forEach(function(a){ var line=el('div'); if(a.kind==='pick') line.textContent=pickLabel(a)+' · '+fmt(a.v); else { line.appendChild(nameBtn(a)); line.appendChild(el('span',{class:'muted small'},' '+a.p+' · '+fmt(a.v))); } c.appendChild(line); }); sides.appendChild(c); });
+        d.appendChild(sides);
+        d.appendChild(el('span',{class:'label'},'Why it works'));
+        var ul=el('ul',{class:'notes'}); why(r).forEach(function(x){ ul.appendChild(el('li',null,x)); }); d.appendChild(ul);
+        var open=el('button',{type:'button'},'Open in Trade Analyzer');
+        open.addEventListener('click',function(){ state.partner=String(r.team); ptSel.value=state.partner; state.give=r.give.map(function(a){return a.id;}); state.get=r.get.map(function(a){return a.id;}); note('From Trade Finder.'); renderTrade(); showTab('trade'); window.scrollTo(0,0); });
+        d.appendChild(open); box.appendChild(d);
+      });
+    }
+    go.addEventListener('click',function(){ go.disabled=true; go.textContent='Searching…'; setTimeout(function(){
+      var m=state.fmode;
+      if(m==='position') state.finder=SUITE.find(D,state.me,{mode:'position',pos:state.fpos,limit:10});
+      else if(m==='target') state.finder=SUITE.find(D,state.me,{mode:'target',target:byId[state.ftarget],limit:8});
+      else if(m==='shop') state.finder=SUITE.find(D,state.me,{mode:'shop',shop:byId[state.fshop],limit:10});
+      else state.finder=SUITE.finder(D,state.me,{goal:m,limit:10});
+      renderFinder(); },30); });
+    show();
+  }
+
+  // ---------- Trade Analyzer
+  var ptSel=document.getElementById('partner');
+  function fillPartners(){ ptSel.innerHTML=''; Object.keys(D.teams).forEach(function(id){ if(id!==state.me) ptSel.appendChild(el('option',{value:id},teamName(id)+' · '+D.teams[id].w+'-'+D.teams[id].l)); }); if(!state.partner||state.partner===state.me) state.partner=ptSel.options[0].value; ptSel.value=state.partner; }
+  ptSel.addEventListener('change',function(){ state.partner=ptSel.value; state.get=[]; note(''); renderTrade(); });
+  document.getElementById('clear').addEventListener('click',function(){ state.give=[]; state.get=[]; note(''); renderTrade(); });
+  function note(t){ document.getElementById('tradeNote').textContent=t; }
+  function assetsOf(team){ return D.players.filter(function(p){ return String(p.o)===team && p.p!=='DEF'; }).sort(function(a,b){ return b.v-a.v; }).concat(D.picks.filter(function(k){ return String(k.o)===team; }).sort(function(a,b){ return b.v-a.v; })); }
+  function setupAdder(which){
+    var input=document.getElementById(which+'Search'), menu=document.getElementById(which+'Menu');
+    function team(){ return which==='give'?state.me:state.partner; }
+    function show(){
+      var q=input.value.trim().toLowerCase(), chosen=state[which];
+      var list=assetsOf(team()).filter(function(a){ if(chosen.indexOf(a.id)>=0) return false; var nm=a.kind==='pick'?pickLabel(a):a.n+' '+a.p+' '+a.t; return !q||nm.toLowerCase().indexOf(q)>=0; }).slice(0,40);
+      menu.innerHTML='';
+      if(!list.length) menu.appendChild(el('div',{class:'empty'},'No matches on '+teamName(team())));
+      list.forEach(function(a){ var b=el('button',{type:'button'}); b.appendChild(el('span',null,a.kind==='pick'?pickLabel(a):a.p+' · '+a.n+' · '+a.t)); b.appendChild(el('span',{class:'num muted'},fmt(a.v)));
+        b.addEventListener('mousedown',function(e){ e.preventDefault(); }); b.addEventListener('click',function(){ state[which].push(a.id); input.value=''; menu.hidden=true; note(''); renderTrade(); }); menu.appendChild(b); });
+      menu.hidden=false;
+    }
+    input.addEventListener('focus',show); input.addEventListener('input',show);
+    input.addEventListener('blur',function(){ setTimeout(function(){ menu.hidden=true; },120); });
+    input.addEventListener('keydown',function(e){ if(e.key==='Escape'){ menu.hidden=true; input.blur(); } });
+  }
+  setupAdder('give'); setupAdder('get');
+  function renderList(which,res){
+    var box=document.getElementById(which+'List'); box.innerHTML=''; var ids=state[which];
+    if(!ids.length){ box.appendChild(el('div',{class:'empty'},which==='give'?'Nothing added yet. Search your roster below.':'Nothing added yet. Search '+teamName(state.partner)+'’s roster below.')); return; }
+    var benched={}; ((res&&(which==='give'?res.give:res.get).benched)||[]).forEach(function(a){ benched[a.id]=1; });
+    ids.forEach(function(id){ var a=byId[id], row=el('div',{class:'asset'});
+      row.appendChild(el('span',{class:'pos'},a.kind==='pick'?'PK':a.p));
+      var mid=el('div',{style:'min-width:0'});
+      if(a.kind==='pick') mid.appendChild(el('div',{class:'nm'},pickLabel(a))); else { var nmw=el('div',{class:'nm'}); nmw.appendChild(nameBtn(a)); mid.appendChild(nmw); }
+      mid.appendChild(el('div',{class:'sub'},a.kind==='pick'?'Rookie draft pick':a.t+' · age '+(a.a||'?')+' · '+(a.g?f1(a.r/a.g)+' pts/g ROS':'no projection')));
+      if(benched[id]) mid.appendChild(el('div',{class:'pen'},'Would not start for '+(which==='give'?teamName(state.partner):'you')+' −'+fmt(a.v*0.3)));
+      row.appendChild(mid);
+      var v=el('div',{class:'val'}); v.appendChild(el('span',{class:'num'},fmt(a.v))); if(a.s==='est'||a.src==='est') v.appendChild(el('span',{class:'est'},'est')); row.appendChild(v);
+      var x=el('button',{type:'button',class:'x','aria-label':'Remove'},'×'); x.addEventListener('click',function(){ state[which]=state[which].filter(function(i){ return i!==id; }); renderTrade(); }); row.appendChild(x);
+      box.appendChild(row); });
+  }
+  function renderTrade(){
+    var give=state.give.map(function(i){ return byId[i]; }), get=state.get.map(function(i){ return byId[i]; });
+    var res=(give.length&&get.length)?ENGINE.analyze(D,state.me,state.partner,give,get):null;
+    renderList('give',res); renderList('get',res);
+    document.getElementById('giveTotal').textContent=fmt(res?res.give.net:give.reduce(function(s,a){return s+a.v;},0));
+    document.getElementById('getTotal').textContent=fmt(res?res.get.net:get.reduce(function(s,a){return s+a.v;},0));
+    var out=document.getElementById('result'); out.innerHTML='';
+    if(!res){ out.appendChild(el('div',{class:'empty',style:'grid-column:1/-1'},'Add at least one asset to each side to see the grade.')); return; }
+    var call=el('div',{style:'display:grid;gap:12px;align-content:start'});
+    call.appendChild(el('span',{class:'label'},'Verdict'));
+    call.appendChild(el('span',{class:'badge tone-'+res.verdict.tone},res.verdict.label));
+    var g=el('div',{class:'gauge',role:'img','aria-label':'Trade edge '+res.edge.toFixed(0)+' percent'}); ['z1','z2','z3','z4','z5'].forEach(function(z){ g.appendChild(el('span',{class:z})); });
+    var nd=el('span',{class:'needle'}); nd.style.left=Math.max(1,Math.min(99,res.edge))+'%'; g.appendChild(nd); call.appendChild(g);
+    var sc=el('div',{class:'gauge-scale'}); ['Favors them','50%','Favors you'].forEach(function(t){ sc.appendChild(el('span',null,t)); }); call.appendChild(sc);
+    var st=el('div',{class:'stats'}); var dl=res.lineupAfter-res.lineupBefore;
+    st.appendChild(stat('Trade edge',f1(res.edge)+'%')); st.appendChild(stat('Net value',(res.netValue>=0?'+':'')+fmt(res.netValue),res.netValue>=0?'up':'down')); st.appendChild(stat('Lineup, pts/wk',(dl>=0?'+':'')+f1(dl),dl>=0?'up':'down'));
+    call.appendChild(st);
+    var bits=[];
+    if(res.give.penalty) bits.push(fmt(res.give.penalty)+' taken off what you send: '+res.give.benched.map(function(a){return a.n;}).join(', ')+' would not start for '+teamName(state.partner)+'.');
+    if(res.get.penalty) bits.push(fmt(res.get.penalty)+' taken off what you receive: '+res.get.benched.map(function(a){return a.n;}).join(', ')+' would not start for you.');
+    if(res.ageGive&&res.ageGet) bits.push('Value-weighted age: you send '+f1(res.ageGive)+', you receive '+f1(res.ageGet)+(res.ageGet<res.ageGive-0.5?' (younger, better for dynasty).':res.ageGet>res.ageGive+0.5?' (older, shorter dynasty window).':'.'));
+    bits.push('Rest-of-season points: you send '+fmt(res.rosGive)+', you receive '+fmt(res.rosGet)+'.');
+    var ul=el('ul',{class:'notes'}); bits.forEach(function(b){ ul.appendChild(el('li',null,b)); }); call.appendChild(ul);
+    out.appendChild(call);
+    var right=el('div',{style:'display:grid;gap:14px;align-content:start;min-width:0'});
+    right.appendChild(el('span',{class:'label'},'Your league rank by position'));
+    right.appendChild(table([{t:'Position'},{t:'Before',r:1},{t:'After',r:1},{t:'Change',r:1}], res.impact.map(function(r){ var d=r.before-r.after; return {cells:[r.pos,{t:ord(r.before),num:1},{t:ord(r.after),num:1},{t:d>0?'▲ '+d:d<0?'▼ '+(-d):'—',num:1,cls:d>0?'up':d<0?'down':'muted'}]}; })));
+    var byeLines=res.byes.filter(function(b){ return b.week; }).map(function(b){ return b.asset.n+': bye Week '+b.week+(b.clash.length?', same week as your starters '+b.clash.map(function(c){return c.n;}).join(', '):', no starter conflicts'); });
+    if(byeLines.length){ right.appendChild(el('span',{class:'label'},'Bye weeks')); var bl=el('ul',{class:'notes'}); byeLines.forEach(function(b){ bl.appendChild(el('li',null,b)); }); right.appendChild(bl); }
+    out.appendChild(right);
+  }
+
+  // ---------- player sheet
+  function openPlayer(id){
+    var p=byId[id]; if(!p) return; var root=document.getElementById('sheetRoot'); root.innerHTML='';
+    var bg=el('div',{class:'sheet-bg'}), sh=el('aside',{class:'psheet',role:'dialog','aria-label':p.n});
+    function close(){ root.innerHTML=''; document.removeEventListener('keydown',esc); }
+    function esc(e){ if(e.key==='Escape') close(); }
+    bg.addEventListener('click',close); document.addEventListener('keydown',esc);
+    var head=el('div',{style:'display:flex;justify-content:space-between;gap:8px;align-items:start'});
+    var hl=el('div',{style:'display:grid;gap:4px'}); hl.appendChild(el('span',{class:'label'},p.p+' · '+p.t+(p.a?' · age '+p.a:'')+(p.inj?' · '+p.inj:''))); hl.appendChild(el('h2',{style:'font-size:26px;text-transform:none;letter-spacing:0'},p.n)); hl.appendChild(el('span',{class:'muted small'},p.o?'Rostered by '+teamName(p.o):'Free agent'));
+    head.appendChild(hl); var cb=el('button',{type:'button','aria-label':'Close'},'Close'); cb.addEventListener('click',close); head.appendChild(cb); sh.appendChild(head);
+    var R=RK.ros.rows.filter(function(x){ return x.p.id===id; })[0];
+    var st=el('div',{class:'stats'});
+    if(p.p!=='DEF'){ st.appendChild(stat('Dynasty value',fmt(p.v)+(p.s==='est'?' est':''))); st.appendChild(stat('Overall rank',R?'#'+R.rank+' · '+R.posRank:'—')); }
+    st.appendChild(stat('ROS pts/game',f1(ppg(p)))); st.appendChild(stat('Week '+D.week,f1(p.w)+(p.op?' vs '+p.op:'')));
+    sh.appendChild(st);
+    var m=SUITE.matchup(D,p); if(m) sh.appendChild(el('div',{class:'alert'},'Week '+D.week+' matchup score '+m.score+'. '+p.op+' allows '+m.pg+' pts/game to '+p.p+'s, '+ord(m.tough)+' toughest in the league.'));
+    // game log bars
+    sh.appendChild(el('span',{class:'label'},'Weeks 1–5 and Week '+D.week+' projection (your scoring)'));
+    var vals=(p.log||[]).concat([p.w]), mx=Math.max.apply(null,vals.map(function(v){return v||0;}).concat([1]));
+    var bars=el('div',{class:'bars'});
+    vals.forEach(function(v,i){ var b=el('div',{class:'bar'+(i===5?' proj':'')}); b.appendChild(el('span',{class:'num'},v==null?'—':f1(v))); var bi=el('i'); bi.style.height=Math.max(2,Math.round(((v||0)/mx)*80))+'px'; b.appendChild(bi); b.appendChild(el('span',{class:'muted'},i===5?'W'+D.week:'W'+(i+1))); bars.appendChild(b); });
+    sh.appendChild(bars);
+    var f=SUITE.form(p); if(f) sh.appendChild(el('span',{class:'muted small'},'Average '+f1(f.avg)+' over '+f.n+' games, floor '+f1(f.lo)+', ceiling '+f1(f.hi)+'.'));
+    if(p.p!=='DEF'&&D.sos[p.t]){ var s=D.sos[p.t][p.p]; sh.appendChild(el('div',null,'Rest-of-season schedule: opponents allow '+(s>=0?s+'% more':(-s)+'% fewer')+' points to '+p.p+'s than average'+(s>=5?' (soft).':s<=-5?' (tough).':' (neutral).'))); }
+    var bye=(D.bye[p.t]||[]).filter(function(w){ return w>=D.week; })[0]; sh.appendChild(el('div',{class:'muted'},bye?'Bye: Week '+bye:'Bye already passed'));
+    if(p.o && String(p.o)!==state.me && p.p!=='DEF'){ var tb=el('button',{type:'button',class:'primary'},'Trade for '+p.n); tb.addEventListener('click',function(){ state.partner=String(p.o); ptSel.value=state.partner; state.get=[p.id]; state.give=[]; note(''); renderTrade(); showTab('trade'); close(); }); sh.appendChild(tb); }
+    root.appendChild(bg); root.appendChild(sh); cb.focus();
+  }
+
+  function renderAll(){ HUB=SUITE.hub(D); renderHub(); renderLineup(); renderMatchups(); renderRankings(); renderFinder(); renderTrade(); }
+
+  // start
+  fillPartners();
+  var ex=D.players.filter(function(p){ return p.n==='Puka Nacua'; })[0], mine=D.players.filter(function(p){ return p.n==='Nico Collins'&&String(p.o)===state.me; })[0];
+  if(ex&&mine){ state.partner=String(ex.o); ptSel.value=state.partner; state.give=[mine.id]; state.get=[ex.id]; note('Example: the Collins-for-Nacua trade you ran in RotoBot.'); }
+  renderAll();
+  var startTab='hub', h=(location.hash||'').replace('#','');
+  try{ var saved=localStorage.getItem('mvp-tab'); if(saved) startTab=saved; }catch(e){}
+  if(['hub','lineup','matchups','rankings','finder','trade'].indexOf(h)>=0) startTab=h;
+  showTab(startTab);
+})();
+</script>
