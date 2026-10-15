@@ -13,4 +13,5 @@ curl -sS -o raw/league.json https://api.sleeper.app/v1/league/$LEAGUE
 POS='position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=DEF'
 for w in $(seq "$WEEK" 18); do curl -sS -o raw/proj$w.json "https://api.sleeper.app/projections/nfl/$SEASON/$w?season_type=regular&$POS"; done
 for w in $(seq 1 $((WEEK-1))); do curl -sS -o raw/stats$w.json "https://api.sleeper.app/stats/nfl/$SEASON/$w?season_type=regular&$POS"; done
+for w in $(seq 1 18); do curl -sS -o raw/m$w.json https://api.sleeper.app/v1/league/$LEAGUE/matchups/$w; done
 echo "Fetched data through week $WEEK. Next: python3 scripts/build_data.py && python3 scripts/build.py"

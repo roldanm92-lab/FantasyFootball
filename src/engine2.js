@@ -204,3 +204,80 @@ SUITE.find = function (D, me, opts) {
     if ((seenT[r.team] || 0) >= (opts.mode === 'target' ? 12 : 2) || seenK[key] || (opts.mode !== 'target' && seenK[gk])) return; seenT[r.team] = (seenT[r.team] || 0) + 1; seenK[key] = 1; seenK[gk] = 1; res.push(r); });
   return res.slice(0, opts.limit || 10);
 };
+
+// ---------- season simulation (playoff odds)
+SUITE.weekMeans = function (D) {
+  var teams = Object.keys(D.teams), means = {};
+  var start = D.week, end = (D.playoffStart || 15) - 1;
+  teams.forEach(function (t) {
+    var roster = D.players.filter(function (p) { return String(p.o) === t; });
+    means[t] = {};
+    for (var w = start; w <= end; w++) {
+      var i = w - D.week;
+      var off = roster.filter(function (p) { return p.p !== 'DEF'; }).map(function (p) { var x = (p.wp || [])[i] || 0; return { id: p.id, p: p.p, r: x, g: x > 0 ? 1 : 0 }; });
+      var def = roster.filter(function (p) { return p.p === 'DEF'; }).map(function (p) { return (p.wp || [])[i] || 0; }).sort(function (a, b) { return b - a; })[0] || 0;
+      means[t][w] = ENGINE.lineup(off).ppg + def;
+    }
+  });
+  return means;
+};
+SUITE.simulate = function (D, n) {
+  n = n || 4000;
+  var teams = Object.keys(D.teams), means = SUITE.weekMeans(D), sd = D.teamSd || 25;
+  var end = (D.playoffStart || 15) - 1, P = D.playoffTeams || 6;
+  var stats = {}; teams.forEach(function (t) { stats[t] = { playoff: 0, bye: 0, first: 0, wins: 0 }; });
+  var seed = 12345; function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+  function gauss() { var u = 1 - rnd(), v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  for (var s = 0; s < n; s++) {
+    var W = {}, PF = {};
+    teams.forEach(function (t) { W[t] = D.teams[t].w; PF[t] = D.teams[t].pf; });
+    for (var w = D.week; w <= end; w++) {
+      (D.lsched[String(w)] || []).forEach(function (pair) {
+        var a = String(pair[0]), b = String(pair[1]);
+        var sa = means[a][w] + gauss() * sd, sb = means[b][w] + gauss() * sd;
+        PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
+      });
+    }
+    var order = teams.slice().sort(function (x, y) { return (W[y] - W[x]) || (PF[y] - PF[x]); });
+    order.forEach(function (t, i) { stats[t].wins += W[t]; if (i < P) stats[t].playoff++; if (i < 2) stats[t].bye++; if (i === 0) stats[t].first++; });
+  }
+  teams.forEach(function (t) { var x = stats[t]; x.playoff /= n; x.bye /= n; x.first /= n; x.wins /= n; });
+  return { stats: stats, means: means, sd: sd, n: n, end: end };
+};
+SUITE.mySchedule = function (D, me, sim) {
+  var out = [], sd = sim.sd;
+  function ncdf(x) { var t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2), p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - p : p; }
+  for (var w = D.week; w <= sim.end; w++) {
+    var pair = (D.lsched[String(w)] || []).filter(function (p) { return String(p[0]) === String(me) || String(p[1]) === String(me); })[0];
+    if (!pair) continue;
+    var opp = String(pair[0]) === String(me) ? String(pair[1]) : String(pair[0]);
+    var a = sim.means[me][w], b = sim.means[opp][w];
+    out.push({ week: w, opp: opp, me: a, them: b, win: ncdf((a - b) / (sd * Math.SQRT2)) });
+  }
+  return out;
+};
+
+// ---------- waivers
+SUITE.waivers = function (D, me) {
+  me = String(me);
+  var mine = D.players.filter(function (p) { return String(p.o) === me && p.p !== 'DEF'; });
+  var base = ENGINE.lineup(mine).ppg;
+  var fas = D.players.filter(function (p) { return !p.o && p.p !== 'DEF' && p.g > 0; });
+  var adds = fas.map(function (fa) {
+    var after = mine.concat([fa]), lu = ENGINE.lineup(after);
+    var cands = mine.filter(function (p) { return !lu.ids[p.id]; }).sort(function (a, b) { return (a.v + a.r * 5) - (b.v + b.r * 5); });
+    return { fa: fa, gain: lu.ppg - base, starts: !!lu.ids[fa.id], drop: cands[0] || null };
+  });
+  var now = adds.filter(function (x) { return x.gain > 0.05; }).sort(function (a, b) { return b.gain - a.gain; }).slice(0, 8);
+  var stash = adds.filter(function (x) { return now.indexOf(x) < 0; }).sort(function (a, b) { return b.fa.v - a.fa.v; }).slice(0, 8);
+  return { now: now, stash: stash };
+};
+
+// ---------- injuries
+SUITE.injuries = function (D, me) {
+  me = String(me);
+  var hurt = D.players.filter(function (p) { return p.inj && p.o && p.p !== 'DEF'; });
+  var mine = hurt.filter(function (p) { return String(p.o) === me; }).sort(function (a, b) { return b.v - a.v; });
+  var league = hurt.filter(function (p) { return String(p.o) !== me && (p.st || p.v >= 2500); }).sort(function (a, b) { return b.v - a.v; });
+  return { mine: mine, league: league };
+};

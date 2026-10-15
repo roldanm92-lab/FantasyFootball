@@ -22,7 +22,7 @@ def posof(pid,e):
     if (e.get('player') or {}).get('position')=='DEF' or pid.isalpha(): return 'DEF'
     return (P.get(pid) or {}).get('position')
 # --- projections weeks 6-18
-ros=collections.defaultdict(float); games=collections.defaultdict(int); wk={}; opp6={}
+ros=collections.defaultdict(float); games=collections.defaultdict(int); wk={}; opp6={}; wkp=collections.defaultdict(dict)
 sched=collections.defaultdict(dict); played=collections.defaultdict(set)
 for w in range(6,19):
     for e in json.load(open(S+f'proj{w}.json')):
@@ -33,7 +33,7 @@ for w in range(6,19):
         if not (st.get('gp') or pos=='DEF'): continue
         pts=proj_score(st,pos)
         if pos=='DEF' and not op: continue
-        ros[pid]+=pts; games[pid]+=1
+        ros[pid]+=pts; games[pid]+=1; wkp[pid][w]=round(pts,1)
         if w==6: wk[pid]=pts; opp6[pid]=op
 weeks_left=list(range(6,19))
 bye={t:[w for w in weeks_left if w not in sched[t]] for t in sched}
@@ -108,7 +108,8 @@ for pid in cand:
     players.append(dict(id=pid,n=(pl.get('full_name') if pos!='DEF' else f"{pid} D/ST"),p=pos,t=tm,a=pl.get('age'),inj=pl.get('injury_status') or '',
         r=round(ros[pid],1),g=games[pid],w=round(wk.get(pid,0),1),op=opp6.get(pid) or sched.get(tm,{}).get(6) or '',
         v=v,s=src,o=owner.get(pid,0),st=1 if pid in starters else 0,
-        log=[logs[pid].get(w,[None,None])[0] for w in range(1,6)]))
+        log=[logs[pid].get(w,[None,None])[0] for w in range(1,6)],
+        wp=[wkp[pid].get(w,0) for w in range(6,19)], ib=pl.get('injury_body_part') or '', inote=(pl.get('injury_notes') or '')[:140]))
 # picks
 own={(s,rd,r['roster_id']):r['roster_id'] for s in ('2027','2028') for rd in (1,2,3) for r in R}
 for t in TP:
@@ -131,8 +132,21 @@ for r in R:
     u=U.get(r['owner_id'],{}); md=u.get('metadata') or {}; s_=r['settings']
     teamsinfo[r['roster_id']]=dict(name=md.get('team_name') or u.get('display_name'),user=u.get('display_name'),w=s_['wins'],l=s_['losses'],
         pf=round(s_['fpts']+s_.get('fpts_decimal',0)/100,1),pa=round(s_.get('fpts_against',0)+s_.get('fpts_against_decimal',0)/100,1))
+sched_l={}; scores=collections.defaultdict(list)
+for w in range(1,19):
+    try: M=json.load(open(S+f'm{w}.json'))
+    except FileNotFoundError: continue
+    pairs=collections.defaultdict(list)
+    for m in M:
+        if m.get('matchup_id'): pairs[m['matchup_id']].append(m['roster_id'])
+        if w<6 and m.get('points'): scores[m['roster_id']].append(m['points'])
+    sched_l[w]=[v for v in pairs.values() if len(v)==2]
+import statistics
+resid=[x-statistics.mean(v) for v in scores.values() if len(v)>1 for x in v]
+team_sd=round(statistics.pstdev(resid),1) if resid else 25.0
+ls=L['settings']
 out=dict(asofLabel=__import__('datetime').datetime.now().strftime('%b %d, %Y, %I:%M %p'),week=6,league=dict(id=L['league_id'],name=L['name'],slots=L['roster_positions']),me=12,
-    teams=teamsinfo,players=players,picks=picks,bye=bye,sched={t:{str(w):o for w,o in d.items()} for t,d in sched.items()},dvp=dvp,sos=sos)
+    teams=teamsinfo,players=players,picks=picks,bye=bye,sched={t:{str(w):o for w,o in d.items()} for t,d in sched.items()},dvp=dvp,sos=sos,lsched={str(w):v for w,v in sched_l.items()},teamSd=team_sd,playoffTeams=ls.get('playoff_teams',6),playoffStart=ls.get('playoff_week_start',15))
 json.dump(out,open('data/data.json','w'),separators=(',',':'))
 print(len(players),'players;',sum(1 for p in players if p['o']==0),'free agents;',len(dvp),'defenses')
 for nm in ['Jaxon Smith-Njigba','Travis Kelce','Jayden Daniels','Trevor Lawrence','Drake Maye']:

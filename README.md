@@ -10,8 +10,10 @@ Open `index.html` in a browser. Everything runs in the page; there is no server.
 |---|---|
 | League Hub | Record, lineup strength, dynasty value rank, A–F position grades, biggest need and surplus, standings for all 12 teams |
 | Sit / Start | Best Week lineup by slot, compared with your current Sleeper lineup; two-player comparison |
+| Season | Playoff odds for every team from thousands of simulated seasons, plus your win chance each remaining week |
 | Matchups | Fantasy points each defense allows per position (league scoring), and your starters' matchup scores |
 | Rankings | Value over replacement, with replacement levels set by how many players the league actually starts at each position |
+| Waivers & Injuries | Free agents who would start for you (with a suggested drop), dynasty stashes, and injury reports for your roster and the league |
 | Trade Finder | Improve a position, trade for a player, shop a player, or best overall; every suggestion explains why it works |
 | Trade Analyzer | Grades any trade: market values, 30% penalty for players who would not start, trade edge %, position ranks before/after, bye conflicts |
 

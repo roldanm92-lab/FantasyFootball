@@ -137,15 +137,19 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" data-tab="hub">League Hub</button>
     <button role="tab" data-tab="lineup">Sit / Start</button>
+    <button role="tab" data-tab="season">Season</button>
     <button role="tab" data-tab="matchups">Matchups</button>
     <button role="tab" data-tab="rankings">Rankings</button>
+    <button role="tab" data-tab="waivers">Waivers &amp; Injuries</button>
     <button role="tab" data-tab="finder">Trade Finder</button>
     <button role="tab" data-tab="trade">Trade Analyzer</button>
   </nav>
 
   <section id="tab-hub" class="tabpane" hidden></section>
   <section id="tab-lineup" class="tabpane" hidden></section>
+  <section id="tab-season" class="tabpane" hidden></section>
   <section id="tab-matchups" class="tabpane" hidden></section>
+  <section id="tab-waivers" class="tabpane" hidden></section>
   <section id="tab-rankings" class="tabpane" hidden></section>
   <section id="tab-finder" class="tabpane" hidden></section>
 
@@ -181,6 +185,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
         <p><strong>Matchups.</strong> Fantasy points each defense has allowed per game to each position in weeks 1–5, in your league's scoring. Matchup score runs 10 (toughest) to 100 (softest).</p>
         <p><strong>Trade value.</strong> Dynasty market values for 12-team superflex PPR (FantasyCalc). Values marked <em>est</em> are outside that feed's top 100 and estimated from DynastyProcess values on the same scale. 2nd and 3rd round pick values are estimates.</p>
         <p><strong>Trade grade.</strong> A player who would not start for his new team counts 30% less. Trade edge is value received divided by all value in the deal: 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass.</p>
+        <p><strong>Season outlook.</strong> Each team’s weekly score is its best projected lineup for that week (byes included) plus random variation sized from this league’s actual scores in weeks 1–5. The rest of the regular season is played out thousands of times; playoff odds are the share of runs a team finishes in the top 6.</p>
+        <p><strong>Waivers.</strong> A pickup counts as helping now only if he would make your best lineup. The suggested drop is the bench player with the least trade value and rest-of-season output.</p>
         <p><strong>Trade Finder.</strong> Tests every 1-for-1, 2-for-1 and 1-for-2 deal between your top players and 1st/2nd-round picks and each team's top players. It keeps deals graded 48–60% for you, so the other side is not asked to take a lopsided loss. Position rooms are ranked by your top 2 QB, 3 RB, 4 WR and 1 TE.</p><p><strong>Estimated values.</strong> Players outside the market feed's top 100 are estimated from RotoBot's league-wide player scores where available (fit to market values), otherwise from DynastyProcess values.</p>
         <p id="asof"></p>
       </div>
@@ -388,6 +394,62 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     draw();
   }
 
+  // ---------- Season outlook
+  var SIM=null;
+  function renderSeason(){
+    var root=document.getElementById('tab-season'); root.innerHTML='';
+    if(!SIM) SIM=SUITE.simulate(D,4000);
+    var wrap=el('div',{style:'display:grid;gap:16px'}); root.appendChild(wrap);
+    var me=state.me, x=SIM.stats[me], T=D.teams[me];
+    var top=panel('Season outlook for '+teamName(me),'Simulates the rest of the regular season (through Week '+SIM.end+') '+fmt(SIM.n)+' times from each team’s best weekly lineup projection. Top '+D.playoffTeams+' make the playoffs; top 2 get a bye.');
+    var st=el('div',{class:'stats'});
+    st.appendChild(stat('Record now',T.w+'-'+T.l));
+    st.appendChild(stat('Projected wins',f1(x.wins)));
+    st.appendChild(stat('Make playoffs',Math.round(x.playoff*100)+'%',x.playoff>=0.5?'up':'down'));
+    st.appendChild(stat('First-round bye',Math.round(x.bye*100)+'%'));
+    st.appendChild(stat('No. 1 seed',Math.round(x.first*100)+'%'));
+    top.appendChild(st);
+    var sched=SUITE.mySchedule(D,me,SIM);
+    top.appendChild(el('span',{class:'label'},'Your remaining games'));
+    top.appendChild(table([{t:'Week',r:1},{t:'Opponent'},{t:'Their record'},{t:'You',r:1},{t:'Them',r:1},{t:'Win chance',r:1}],
+      sched.map(function(g){ var o=D.teams[g.opp], c=g.win>=0.6?'m-good':g.win<=0.4?'m-bad':'m-mid';
+        return {cells:[{t:g.week,num:1},teamName(g.opp),o.w+'-'+o.l,{t:f1(g.me),num:1},{t:f1(g.them),num:1},{node:el('span',{class:'chip '+c},Math.round(g.win*100)+'%')}]}; })));
+    var hard=sched.filter(function(g){ return g.win<0.5; });
+    if(hard.length) top.appendChild(el('div',{class:'alert'},'Toughest games: '+hard.map(function(g){ return 'Week '+g.week+' vs '+teamName(g.opp)+' ('+Math.round(g.win*100)+'%)'; }).join(', ')+'.'));
+    wrap.appendChild(top);
+    var lg=panel('Playoff odds, whole league','Ties broken by points for.');
+    var ids=Object.keys(D.teams).sort(function(a,b){ return SIM.stats[b].playoff-SIM.stats[a].playoff || SIM.stats[b].wins-SIM.stats[a].wins; });
+    lg.appendChild(table([{t:'Team'},{t:'W-L',r:1},{t:'PF',r:1},{t:'Proj. wins',r:1},{t:'Playoffs',r:1},{t:'Bye',r:1},{t:'No. 1 seed',r:1}],
+      ids.map(function(id){ var s=SIM.stats[id], t=D.teams[id], c=s.playoff>=0.75?'m-good':s.playoff<=0.25?'m-bad':'m-mid';
+        return {cls:id===me?'mine':null,cells:[teamName(id),{t:t.w+'-'+t.l,num:1},{t:fmt(t.pf),num:1},{t:f1(s.wins),num:1},{node:el('span',{class:'chip '+c},Math.round(s.playoff*100)+'%')},{t:Math.round(s.bye*100)+'%',num:1},{t:Math.round(s.first*100)+'%',num:1}]}; })));
+    wrap.appendChild(lg);
+  }
+
+  // ---------- Waivers & injuries
+  function renderWaivers(){
+    var root=document.getElementById('tab-waivers'); root.innerHTML='';
+    var wrap=el('div',{style:'display:grid;gap:16px'}); root.appendChild(wrap);
+    var W=SUITE.waivers(D,state.me), I=SUITE.injuries(D,state.me);
+    var a=panel('Pickups that help now','Free agents who would make your best starting lineup, with the bench player you would miss least.');
+    if(!W.now.length) a.appendChild(el('div',{class:'empty'},'No free agent beats your current starters right now. Check the stash list below for long-term adds.'));
+    else a.appendChild(table([{t:'Add'},{t:'Pos'},{t:'Team'},{t:'ROS pts/g',r:1},{t:'Lineup gain',r:1},{t:'Suggested drop'}],
+      W.now.map(function(x){ return {cells:[{node:nameBtn(x.fa)},x.fa.p,x.fa.t,{t:f1(ppg(x.fa)),num:1},{t:'+'+f1(x.gain),num:1,cls:'up'},x.drop?x.drop.n+' ('+fmt(x.drop.v)+')':'—']}; })));
+    wrap.appendChild(a);
+    var b=panel('Dynasty stashes','Free agents with the most trade value. Worth a bench spot if you have one to spare.');
+    b.appendChild(table([{t:'Player'},{t:'Pos'},{t:'Team'},{t:'Age',r:1},{t:'Value',r:1},{t:'ROS pts/g',r:1},{t:'Drop instead'}],
+      W.stash.map(function(x){ return {cells:[{node:nameBtn(x.fa)},x.fa.p,x.fa.t,{t:x.fa.a||'',num:1},{t:fmt(x.fa.v)+(x.fa.s==='est'?'*':''),num:1},{t:f1(ppg(x.fa)),num:1},x.drop?x.drop.n+' ('+fmt(x.drop.v)+')':'—']}; })));
+    wrap.appendChild(b);
+    var c=panel('Your injury report','From Sleeper’s injury designations.');
+    if(!I.mine.length) c.appendChild(el('div',{class:'empty'},'No injury designations on your roster.'));
+    else c.appendChild(table([{t:'Player'},{t:'Pos'},{t:'Status'},{t:'Injury'},{t:'Starting'},{t:'Note'}],
+      I.mine.map(function(p){ return {cells:[{node:nameBtn(p)},p.p,{node:el('span',{class:'chip '+(p.inj==='Questionable'?'m-mid':'m-bad')},p.inj)},p.ib||'—',p.st?'Yes':'',{node:el('span',{class:'small muted',style:'white-space:normal'},p.inote||'')}]}; })));
+    wrap.appendChild(c);
+    var d=panel('Injuries around the league','Starters and valuable players on other teams. Injured stars can be buy-low trade targets.');
+    d.appendChild(table([{t:'Player'},{t:'Pos'},{t:'Status'},{t:'Injury'},{t:'Team'},{t:'Value',r:1}],
+      I.league.slice(0,30).map(function(p){ return {cells:[{node:nameBtn(p)},p.p,{node:el('span',{class:'chip '+(p.inj==='Questionable'?'m-mid':'m-bad')},p.inj)},p.ib||'—',teamName(p.o),{t:fmt(p.v),num:1}]}; })));
+    wrap.appendChild(d);
+  }
+
   // ---------- Trade Finder
   function renderFinder(){
     var root=document.getElementById('tab-finder'); root.innerHTML='';
@@ -550,7 +612,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     root.appendChild(bg); root.appendChild(sh); cb.focus();
   }
 
-  function renderAll(){ HUB=SUITE.hub(D); renderHub(); renderLineup(); renderMatchups(); renderRankings(); renderFinder(); renderTrade(); }
+  function renderAll(){ HUB=SUITE.hub(D); renderHub(); renderLineup(); renderSeason(); renderMatchups(); renderWaivers(); renderRankings(); renderFinder(); renderTrade(); }
 
   // start
   fillPartners();
@@ -559,7 +621,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   renderAll();
   var startTab='hub', h=(location.hash||'').replace('#','');
   try{ var saved=localStorage.getItem('mvp-tab'); if(saved) startTab=saved; }catch(e){}
-  if(['hub','lineup','matchups','rankings','finder','trade'].indexOf(h)>=0) startTab=h;
+  if(['hub','lineup','season','matchups','waivers','rankings','finder','trade'].indexOf(h)>=0) startTab=h;
   showTab(startTab);
 })();
 </script>
