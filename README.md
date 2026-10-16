@@ -14,13 +14,15 @@ Open `index.html` in a browser. Everything runs in the page; there is no server.
 | Matchups | Fantasy points each defense allows per position (league scoring), and your starters' matchup scores |
 | Rankings | Value over replacement, with replacement levels set by how many players the league actually starts at each position |
 | Waivers & Injuries | Free agents who would start for you (with a suggested drop), dynasty stashes, and injury reports for your roster and the league |
-| Trade Finder | Improve a position, trade for a player, shop a player, or best overall; every suggestion explains why it works |
-| Trade Analyzer | Grades any trade: market values, 30% penalty for players who would not start, trade edge %, position ranks before/after, bye conflicts |
+| Trade Finder | Improve a position, trade for a player or pick, shop one or more of your players and picks, or best overall; FAAB can balance close deals; every suggestion explains why it works |
+| Trade Analyzer | Grades any trade, including FAAB on either side: market values, 30% penalty for players who would not start, trade edge %, position ranks before/after, bye conflicts |
 
 ## How the numbers work
 
 - **Projections:** Sleeper weekly projections, re-scored with the league's scoring settings, including expected yardage bonuses.
 - **Trade values:** FantasyCalc dynasty values (12-team, superflex, PPR). Players outside its top 100 are estimated from league-wide player scores fit to market values, otherwise from DynastyProcess values.
+- **FAAB:** remaining budgets come from Sleeper; $1 is valued from the league's own winning bids (adjustable on the page).
+- **2027 picks:** valued by the original team's projected finish in the season simulation (reverse-standings draft order assumed).
 - **Trade edge:** value received ÷ total value. 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass.
 
 ## Refreshing the data

@@ -281,3 +281,119 @@ SUITE.injuries = function (D, me) {
   var league = hurt.filter(function (p) { return String(p.o) !== me && (p.st || p.v >= 2500); }).sort(function (a, b) { return b.v - a.v; });
   return { mine: mine, league: league };
 };
+
+// ---------- 2027 pick values from each original team's simulated final standing
+// Assumes rookie draft order is reverse final regular-season standings.
+SUITE.repricePicks = function (D) {
+  var teams = Object.keys(D.teams), means = SUITE.weekMeans(D), sd = D.teamSd || 25, end = (D.playoffStart || 15) - 1, n = 3000;
+  var slots = {}; teams.forEach(function (t) { slots[t] = new Array(teams.length + 1).fill(0); });
+  var seed = 4242; function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+  function gauss() { var u = 1 - rnd(), v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  for (var s = 0; s < n; s++) {
+    var W = {}, PF = {}; teams.forEach(function (t) { W[t] = D.teams[t].w; PF[t] = D.teams[t].pf; });
+    for (var w = D.week; w <= end; w++) (D.lsched[String(w)] || []).forEach(function (pr) {
+      var a = String(pr[0]), b = String(pr[1]), sa = means[a][w] + gauss() * sd, sb = means[b][w] + gauss() * sd;
+      PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
+    });
+    teams.slice().sort(function (x, y) { return (W[x] - W[y]) || (PF[x] - PF[y]); }).forEach(function (t, i) { slots[t][i + 1]++; });
+  }
+  var TIER = { 1: [5049, 3325, 2562], 2: [2000, 1700, 1450], 3: [900, 800, 700] };
+  D.pickSlots = {};
+  teams.forEach(function (t) {
+    var p = slots[t].map(function (c) { return c / n; }), exp = 0, tierP = [0, 0, 0];
+    for (var i = 1; i < p.length; i++) { exp += i * p[i]; tierP[i <= 4 ? 0 : i <= 8 ? 1 : 2] += p[i]; }
+    D.pickSlots[t] = { exp: exp, tierP: tierP };
+  });
+  D.picks.forEach(function (k) {
+    if (k.s !== '2027' || !TIER[k.rd]) return;
+    var sp = D.pickSlots[String(k.orig)]; if (!sp) return;
+    var tv = TIER[k.rd];
+    k.v = Math.round(sp.tierP[0] * tv[0] + sp.tierP[1] * tv[1] + sp.tierP[2] * tv[2]);
+    k.tag = 'proj. pick ' + Math.round(sp.exp);
+  });
+};
+
+// ---------- FAAB helpers
+SUITE.faabAsset = function (D, team, amt) {
+  amt = Math.max(0, Math.round(amt || 0));
+  return { id: 'faab-' + team, kind: 'faab', o: team, amt: amt, v: amt * (D.faabRate || (D.faab && D.faab.rate) || 15) };
+};
+SUITE.faabLeft = function (D, team) { return (D.faab && D.faab.left && D.faab.left[String(team)]) || 0; };
+
+// ---------- goal-driven finder v3: multi-asset shop, picks as returns, FAAB balancing
+SUITE.find = function (D, me, opts) {
+  var POS = SUITE.POS, DEPTH = { QB: 2, RB: 3, WR: 4, TE: 1 };
+  me = String(me);
+  var rate = D.faabRate || (D.faab && D.faab.rate) || 15, useFaab = opts.faab !== false && D.faab && D.faab.budget;
+  var R = {}; Object.keys(D.teams).forEach(function (t) { R[t] = []; });
+  D.players.forEach(function (p) { if (p.o && p.p !== 'DEF') R[p.o].push(p); });
+  function posScore(list, pos) { return list.filter(function (p) { return p.p === pos; }).map(function (p) { return p.r; }).sort(function (a, b) { return b - a; }).slice(0, DEPTH[pos]).reduce(function (s, x) { return s + x; }, 0); }
+  var base = {}; POS.forEach(function (pos) { base[pos] = {}; Object.keys(R).forEach(function (t) { base[pos][t] = posScore(R[t], pos); }); });
+  function rankWith(pos, team, score, other, otherScore) { var r = 1; Object.keys(R).forEach(function (t) { if (t === team) return; var s = t === other ? otherScore : base[pos][t]; if (s > score) r++; }); return r; }
+  function picksOf(t) { return D.picks.filter(function (k) { return String(k.o) === t && k.rd <= 2; }); }
+  var mineAll = R[me].filter(function (p) { return p.v >= 300; }).sort(function (a, b) { return b.v - a.v; }).slice(0, 16).concat(picksOf(me));
+  var shopSet = opts.mode === 'shop' ? (opts.shop || []) : null;
+  var baseMe = ENGINE.lineup(R[me]).ppg, out = [];
+  var myLeft = SUITE.faabLeft(D, me);
+
+  Object.keys(R).forEach(function (t) {
+    if (t === me) return;
+    if (opts.mode === 'target' && String(opts.target.o) !== t) return;
+    var theirs = R[t].filter(function (p) { return p.v >= 300; }).sort(function (a, b) { return b.v - a.v; }).slice(0, 14).concat(picksOf(t));
+    var baseThem = ENGINE.lineup(R[t]).ppg, theirLeft = SUITE.faabLeft(D, t);
+    function ev(give, get) {
+      if (opts.mode === 'target' && get.indexOf(opts.target) < 0) return;
+      if (opts.mode === 'position' && !get.some(function (a) { return a.p === opts.pos; })) return;
+      var gi = {}, ge = {}; give.forEach(function (a) { gi[a.id] = 1; }); get.forEach(function (a) { ge[a.id] = 1; });
+      var mA = R[me].filter(function (p) { return !gi[p.id]; }).concat(get.filter(function (a) { return a.p; }));
+      var tA = R[t].filter(function (p) { return !ge[p.id]; }).concat(give.filter(function (a) { return a.p; }));
+      var ml = ENGINE.lineup(mA), tl = ENGINE.lineup(tA);
+      function net(list, line) { return list.reduce(function (s, a) { return s + a.v * (a.p && !line.ids[a.id] ? 0.7 : 1); }, 0); }
+      var inn = net(get, ml), outv = net(give, tl), edge = 100 * inn / (inn + outv), faab = null;
+      if (useFaab && edge < 48) {          // I'm overpaying: ask them for FAAB
+        var need = Math.ceil(((outv - inn) / rate + 1) / 5) * 5;  // reach ~50%
+        if (need > 0 && need <= theirLeft) { faab = { dir: 'get', amt: need }; inn += need * rate; }
+      } else if (useFaab && edge > 60) {   // they're overpaying: add FAAB from me
+        var add = Math.ceil(((inn / 0.56) - inn - outv) / rate / 5) * 5;
+        if (add > 0 && add <= myLeft) { faab = { dir: 'give', amt: add }; outv += add * rate; }
+      }
+      edge = 100 * inn / (inn + outv);
+      if (edge < 48 || edge > 60) return;
+      var myGain = ml.ppg - baseMe, theirGain = tl.ppg - baseThem;
+      if (theirGain < -2.5 && edge > 55) return;
+      var focus = opts.mode === 'position' ? opts.pos : (get.filter(function (a) { return a.p; })[0] || {}).p;
+      var room = null;
+      if (focus) {
+        var mS = posScore(mA, focus), tS = posScore(tA, focus);
+        room = { pos: focus, myBefore: rankWith(focus, me, base[focus][me], null, 0), myAfter: rankWith(focus, me, mS, t, tS),
+          theirBefore: rankWith(focus, t, base[focus][t], null, 0), theirAfter: rankWith(focus, t, tS, me, mS) };
+      }
+      var score, fpen = faab ? faab.amt / 40 : 0;
+      if (opts.mode === 'position') { if (!room || room.myAfter >= room.myBefore) return; score = (room.myBefore - room.myAfter) * 3 + myGain - Math.abs(edge - 53) * 0.3 - fpen; }
+      else if (opts.mode === 'target') score = 10 - Math.abs(edge - 52) + myGain * 0.5 - fpen;
+      else score = inn / 500 + myGain + Math.max(theirGain, 0) * 0.3 - fpen;
+      var g2 = give.slice(), r2 = get.slice();
+      if (faab && faab.dir === 'give') g2.push(SUITE.faabAsset(D, me, faab.amt));
+      if (faab && faab.dir === 'get') r2.push(SUITE.faabAsset(D, t, faab.amt));
+      out.push({ team: t, give: g2, get: r2, edge: edge, myGain: myGain, theirGain: theirGain, netValue: inn - outv, room: room, score: score, faab: faab });
+    }
+    var i, j, k;
+    if (shopSet) {
+      for (k = 0; k < theirs.length; k++) ev(shopSet, [theirs[k]]);
+      for (k = 0; k < theirs.length; k++) for (j = k + 1; j < theirs.length; j++) ev(shopSet, [theirs[k], theirs[j]]);
+      return;
+    }
+    for (i = 0; i < mineAll.length; i++) for (k = 0; k < theirs.length; k++) ev([mineAll[i]], [theirs[k]]);
+    for (i = 0; i < mineAll.length; i++) for (j = i + 1; j < mineAll.length; j++) for (k = 0; k < theirs.length; k++) ev([mineAll[i], mineAll[j]], [theirs[k]]);
+    for (i = 0; i < mineAll.length; i++) for (k = 0; k < theirs.length; k++) for (j = k + 1; j < theirs.length; j++) ev([mineAll[i]], [theirs[k], theirs[j]]);
+  });
+  out.sort(function (a, b) { return b.score - a.score; });
+  var seenT = {}, seenK = {}, res = [], perTeam = opts.mode === 'target' ? 12 : opts.mode === 'shop' ? 3 : 2;
+  out.forEach(function (r) {
+    var gk = r.get.filter(function (a) { return a.kind !== 'faab'; }).map(function (a) { return a.id; }).join('+');
+    var key = gk + '|' + r.give.map(function (a) { return a.id; }).join('+');
+    if ((seenT[r.team] || 0) >= perTeam || seenK[key] || (opts.mode !== 'target' && seenK[gk])) return;
+    seenT[r.team] = (seenT[r.team] || 0) + 1; seenK[key] = 1; seenK[gk] = 1; res.push(r);
+  });
+  return res.slice(0, opts.limit || 10);
+};

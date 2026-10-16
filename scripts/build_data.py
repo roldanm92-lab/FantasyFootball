@@ -147,10 +147,24 @@ import statistics
 resid=[x-statistics.mean(v) for v in scores.values() if len(v)>1 for x in v]
 team_sd=round(statistics.pstdev(resid),1) if resid else 25.0
 ls=L['settings']
+# FAAB: budgets, remaining, and $ -> value rate from this league's winning bids
+budget=ls.get('waiver_budget') or 0
+faab_left={r['roster_id']:max(0,budget-(r['settings'].get('waiver_budget_used') or 0)) for r in R}
+vals={p['id']:p['v'] for p in players}
+ratios=[]
+for w in range(1,WEEK+1):
+    try: T=json.load(open(S+f'tx{w}.json'))
+    except FileNotFoundError: continue
+    for t in T:
+        if t['type']=='waiver' and t['status']=='complete':
+            bid=(t.get('settings') or {}).get('waiver_bid') or 0
+            for pid in (t.get('adds') or {}):
+                if bid>=10 and vals.get(pid): ratios.append(vals[pid]/bid)
+faab_rate=round(statistics.median(ratios)) if len(ratios)>=5 else 15
 from zoneinfo import ZoneInfo
 import datetime as _dt
 out=dict(asofLabel=_dt.datetime.now(ZoneInfo('America/New_York')).strftime('%b %d, %Y, %I:%M %p ET'),week=WEEK,logStart=LOG0,league=dict(id=L['league_id'],name=L['name'],slots=L['roster_positions']),me=12,
-    teams=teamsinfo,players=players,picks=picks,bye=bye,sched={t:{str(w):o for w,o in d.items()} for t,d in sched.items()},dvp=dvp,sos=sos,lsched={str(w):v for w,v in sched_l.items()},teamSd=team_sd,playoffTeams=ls.get('playoff_teams',6),playoffStart=ls.get('playoff_week_start',15))
+    teams=teamsinfo,players=players,picks=picks,bye=bye,sched={t:{str(w):o for w,o in d.items()} for t,d in sched.items()},dvp=dvp,sos=sos,lsched={str(w):v for w,v in sched_l.items()},teamSd=team_sd,playoffTeams=ls.get('playoff_teams',6),faab=dict(budget=budget,left={str(k):v for k,v in faab_left.items()},rate=faab_rate,bids=len(ratios)),tradeDeadline=ls.get('trade_deadline'),playoffStart=ls.get('playoff_week_start',15))
 json.dump(out,open('data/data.json','w'),separators=(',',':'))
 print(len(players),'players;',sum(1 for p in players if p['o']==0),'free agents;',len(dvp),'defenses')
 for nm in ['Jaxon Smith-Njigba','Travis Kelce','Jayden Daniels','Trevor Lawrence','Drake Maye']:

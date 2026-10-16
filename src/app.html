@@ -115,6 +115,12 @@ td.heat{font-family:var(--f-mono);text-align:right}
 .bar{display:grid;gap:3px;align-content:end;justify-items:center;font-size:11px;height:100%}
 .bar i{display:block;width:100%;background:var(--ink);border-radius:3px 3px 0 0;opacity:.75}
 .bar.proj i{background:var(--accent);opacity:1}
+.faabrow{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.faabrow input{width:90px}
+.shoplist{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 12px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:8px}
+.shoplist label{display:flex;gap:8px;align-items:center;font-size:13px;min-width:0}
+.shoplist label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.check{display:flex;gap:8px;align-items:center;font-size:13px}
 .explain{display:grid;gap:8px;font-size:13px;color:var(--muted);max-width:75ch}
 .explain p{margin:0}
 details summary{cursor:pointer;font-weight:600;color:var(--ink)}
@@ -157,6 +163,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     <div style="display:grid;gap:16px">
       <div class="panel"><div class="row">
         <div class="field"><label class="label" for="partner">Trading with</label><select id="partner"></select></div>
+        <div class="field"><label class="label" for="faabRate">$1 of FAAB is worth</label><input id="faabRate" type="number" min="0" step="1" inputmode="numeric" style="width:100px"></div>
         <button id="clear" type="button">Clear trade</button>
         <span class="muted small" id="tradeNote"></span>
       </div></div>
@@ -165,11 +172,13 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
           <div class="side-head"><h2>You send</h2><span class="total num" id="giveTotal">0</span></div>
           <div class="assets" id="giveList"></div>
           <div class="adder"><input id="giveSearch" placeholder="Add a player or pick from your roster" autocomplete="off" aria-label="Add from your roster"><div class="menu" id="giveMenu" hidden></div></div>
+          <div class="faabrow"><label class="label" for="giveFaab">FAAB you send $</label><input id="giveFaab" type="number" min="0" step="1" inputmode="numeric" value="0"><span class="muted small" id="giveFaabNote"></span></div>
         </div>
         <div class="panel">
           <div class="side-head"><h2>You receive</h2><span class="total num" id="getTotal">0</span></div>
           <div class="assets" id="getList"></div>
           <div class="adder"><input id="getSearch" placeholder="Add from their roster" autocomplete="off" aria-label="Add from their roster"><div class="menu" id="getMenu" hidden></div></div>
+          <div class="faabrow"><label class="label" for="getFaab">FAAB you receive $</label><input id="getFaab" type="number" min="0" step="1" inputmode="numeric" value="0"><span class="muted small" id="getFaabNote"></span></div>
         </div>
       </div>
       <div class="panel verdict" id="result" aria-live="polite"></div>
@@ -187,7 +196,9 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
         <p><strong>Trade grade.</strong> A player who would not start for his new team counts 30% less. Trade edge is value received divided by all value in the deal: 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass.</p>
         <p><strong>Season outlook.</strong> Each team’s weekly score is its best projected lineup for that week (byes included) plus random variation sized from this league’s actual scores so far this season. The rest of the regular season is played out thousands of times; playoff odds are the share of runs a team finishes in the top 6.</p>
         <p><strong>Waivers.</strong> A pickup counts as helping now only if he would make your best lineup. The suggested drop is the bench player with the least trade value and rest-of-season output.</p>
-        <p><strong>Trade Finder.</strong> Tests every 1-for-1, 2-for-1 and 1-for-2 deal between your top players and 1st/2nd-round picks and each team's top players. It keeps deals graded 48–60% for you, so the other side is not asked to take a lopsided loss. Position rooms are ranked by your top 2 QB, 3 RB, 4 WR and 1 TE.</p><p><strong>Estimated values.</strong> Players outside the market feed's top 100 are estimated from RotoBot's league-wide player scores where available (fit to market values), otherwise from DynastyProcess values.</p>
+        <p><strong>Trade Finder.</strong> Tests every 1-for-1, 2-for-1 and 1-for-2 deal between your top players and 1st/2nd-round picks and each team's top players. It keeps deals graded 48–60% for you, so the other side is not asked to take a lopsided loss. Position rooms are ranked by your top 2 QB, 3 RB, 4 WR and 1 TE.</p><p><strong>FAAB.</strong> Remaining waiver budget can be added to either side of a trade. Its value per dollar defaults to the median of this league\u2019s winning bids of $10 or more, divided into the bought player\u2019s trade value; change it in the Trade Analyzer. Trade Finder can use FAAB to even out deals that would otherwise land just outside the fair range.</p>
+        <p><strong>2027 picks.</strong> Valued by where the original team is projected to finish in the season simulation, assuming the rookie draft goes in reverse order of final standings. Picks 1\u20134 are early, 5\u20138 mid, 9\u201312 late.</p>
+        <p><strong>Estimated values.</strong> Players outside the market feed's top 100 are estimated from RotoBot's league-wide player scores where available (fit to market values), otherwise from DynastyProcess values.</p>
         <p id="asof"></p>
       </div>
     </details>
@@ -203,7 +214,10 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   var D=window.LEAGUE_DATA, byId={};
   D.players.forEach(function(p){ byId[p.id]=p; });
   D.picks.forEach(function(k){ k.kind='pick'; byId[k.id]=k; });
-  var state={ me:String(D.me), tab:'hub', partner:null, give:[], get:[], rkMode:'ros', rkPos:'ALL', rkFA:false, rkQ:'', goal:'balanced', finder:null, cmpA:null, cmpB:null };
+  D.faabRate=(D.faab&&D.faab.rate)||15;
+  try{ var savedRate=parseFloat(localStorage.getItem('mvp-faab-rate')); if(savedRate>=0&&isFinite(savedRate)) D.faabRate=savedRate; }catch(e){}
+  SUITE.repricePicks(D);
+  var state={ giveFaab:0, getFaab:0, fUseFaab:true, fshopSet:[], me:String(D.me), tab:'hub', partner:null, give:[], get:[], rkMode:'ros', rkPos:'ALL', rkFA:false, rkQ:'', goal:'balanced', finder:null, cmpA:null, cmpB:null };
   var HUB=SUITE.hub(D);
 
   // ---------- helpers
@@ -232,7 +246,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   var meSel=document.getElementById('me');
   Object.keys(D.teams).forEach(function(id){ meSel.appendChild(el('option',{value:id},teamName(id)+(D.teams[id].name!==D.teams[id].user?' ('+D.teams[id].user+')':''))); });
   meSel.value=state.me;
-  meSel.addEventListener('change',function(){ state.me=meSel.value; state.give=[]; state.get=[]; state.finder=null; state.fpos=null; state.cmpA=state.cmpB=null; fillPartners(); renderAll(); });
+  meSel.addEventListener('change',function(){ state.me=meSel.value; state.give=[]; state.get=[]; state.giveFaab=0; state.getFaab=0; state.fshopSet=[]; state.finder=null; state.fpos=null; state.cmpA=state.cmpB=null; fillPartners(); renderAll(); });
 
   // ---------- tabs
   var tabBtns=[].slice.call(document.querySelectorAll('#tabs button'));
@@ -250,6 +264,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     st.appendChild(stat('Points for',fmt(t.pf)));
     st.appendChild(stat('Lineup strength',ord(h.lineupRank)+' of 12'));
     st.appendChild(stat('Dynasty value',ord(h.valueRank)+' of 12'));
+    if(D.faab&&D.faab.budget) st.appendChild(stat('FAAB left','$'+SUITE.faabLeft(D,state.me)+' of $'+D.faab.budget));
     st.appendChild(stat('Week '+D.week+' projection',f1(ss.currentPts)));
     top.appendChild(st);
     var gr=el('div',{class:'row'}); SUITE.POS.forEach(function(pos){ var g=el('div',{style:'display:flex;gap:6px;align-items:center'}); g.appendChild(el('span',{class:'label'},pos)); g.appendChild(el('span',{class:'chip g-'+h.grades[pos]},h.grades[pos])); g.appendChild(el('span',{class:'muted small'},ord(h.posRank[pos]))); gr.appendChild(g); });
@@ -267,10 +282,10 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     var stand=panel('Standings and team outlook','Lineup strength = best starting lineup by rest-of-season points per game. Dynasty value = all players and picks.');
     var ids=Object.keys(D.teams).sort(function(a,b){ var A=D.teams[a],B=D.teams[b]; return (B.w-A.w)||(B.pf-A.pf); });
     stand.appendChild(table(
-      [{t:'#'},{t:'Team'},{t:'W-L',r:1},{t:'PF',r:1},{t:'Lineup',r:1},{t:'Value',r:1},{t:'QB'},{t:'RB'},{t:'WR'},{t:'TE'},{t:'Outlook'}],
+      [{t:'#'},{t:'Team'},{t:'W-L',r:1},{t:'PF',r:1},{t:'Lineup',r:1},{t:'Value',r:1},{t:'FAAB',r:1},{t:'QB'},{t:'RB'},{t:'WR'},{t:'TE'},{t:'Outlook'}],
       ids.map(function(id,i){ var x=HUB[id], T=D.teams[id];
         function g(pos){ return {node:el('span',{class:'chip g-'+x.grades[pos]},x.grades[pos])}; }
-        return {cls:id===state.me?'mine':null,cells:[String(i+1),teamName(id),{t:T.w+'-'+T.l,num:1},{t:fmt(T.pf),num:1},{t:ord(x.lineupRank),num:1},{t:ord(x.valueRank),num:1},g('QB'),g('RB'),g('WR'),g('TE'),x.mode]};
+        return {cls:id===state.me?'mine':null,cells:[String(i+1),teamName(id),{t:T.w+'-'+T.l,num:1},{t:fmt(T.pf),num:1},{t:ord(x.lineupRank),num:1},{t:ord(x.valueRank),num:1},{t:'$'+SUITE.faabLeft(D,id),num:1},g('QB'),g('RB'),g('WR'),g('TE'),x.mode]};
       })));
     wrap.appendChild(stand);
 
@@ -464,14 +479,35 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     if(!state.fpos) state.fpos=N.need[0];
     var row=el('div',{class:'row'});
     var mf=el('div',{class:'field'}); mf.appendChild(el('label',{class:'label',for:'fmode'},'What do you want to do?'));
-    var ms=el('select',{id:'fmode'}); [['position','Improve a position'],['target','Trade for a player'],['shop','Shop one of my players'],['balanced','Best overall: win the trade, keep your lineup'],['win-now','Best overall: improve this season'],['value','Best overall: gain dynasty value']].forEach(function(o){ ms.appendChild(el('option',{value:o[0]},o[1])); });
+    var ms=el('select',{id:'fmode'}); [['position','Improve a position'],['target','Trade for a player'],['shop','Shop my players or picks'],['balanced','Best overall: win the trade, keep your lineup'],['win-now','Best overall: improve this season'],['value','Best overall: gain dynasty value']].forEach(function(o){ ms.appendChild(el('option',{value:o[0]},o[1])); });
     ms.value=state.fmode; ms.addEventListener('change',function(){ state.fmode=ms.value; state.finder=null; renderFinder(); }); mf.appendChild(ms); row.appendChild(mf);
     var sub=el('div',{class:'field'});
     if(state.fmode==='position'){ sub.appendChild(el('label',{class:'label',for:'fpos'},'Position')); var ps=el('select',{id:'fpos'}); SUITE.POS.forEach(function(pos){ ps.appendChild(el('option',{value:pos},pos+' (you rank '+ord(N.ranks[pos])+')')); }); ps.value=state.fpos; ps.addEventListener('change',function(){ state.fpos=ps.value; state.finder=null; renderFinder(); }); sub.appendChild(ps); row.appendChild(sub); }
-    if(state.fmode==='target'){ sub.appendChild(el('label',{class:'label',for:'ftarget'},'Player to get')); var ts=el('select',{id:'ftarget'}); D.players.filter(function(x){ return x.o && String(x.o)!==state.me && x.p!=='DEF' && x.v>=300; }).sort(function(a,b){ return b.v-a.v; }).forEach(function(x){ ts.appendChild(el('option',{value:x.id},x.p+' · '+x.n+' · '+teamName(x.o))); }); if(!state.ftarget||!byId[state.ftarget]||String(byId[state.ftarget].o)===state.me) state.ftarget=ts.options[0]&&ts.options[0].value; ts.value=state.ftarget; ts.addEventListener('change',function(){ state.ftarget=ts.value; state.finder=null; renderFinder(); }); sub.appendChild(ts); row.appendChild(sub); }
-    if(state.fmode==='shop'){ sub.appendChild(el('label',{class:'label',for:'fshop'},'Player to shop')); var ss=el('select',{id:'fshop'}); D.players.filter(function(x){ return String(x.o)===state.me && x.p!=='DEF' && x.v>=300; }).sort(function(a,b){ return b.v-a.v; }).forEach(function(x){ ss.appendChild(el('option',{value:x.id},x.p+' · '+x.n+' · '+fmt(x.v))); }); if(!state.fshop||!byId[state.fshop]||String(byId[state.fshop].o)!==state.me) state.fshop=ss.options[0]&&ss.options[0].value; ss.value=state.fshop; ss.addEventListener('change',function(){ state.fshop=ss.value; state.finder=null; renderFinder(); }); sub.appendChild(ss); row.appendChild(sub); }
+    if(state.fmode==='target'){ sub.appendChild(el('label',{class:'label',for:'ftarget'},'Player or pick to get')); var ts=el('select',{id:'ftarget'});
+      var tl=D.players.filter(function(x){ return x.o && String(x.o)!==state.me && x.p!=='DEF' && x.v>=300; }).concat(D.picks.filter(function(k){ return String(k.o)!==state.me && k.rd<=2; })).sort(function(a,b){ return b.v-a.v; });
+      tl.forEach(function(x){ ts.appendChild(el('option',{value:x.id},x.kind==='pick'?'PK · '+pickLabel(x)+' · '+teamName(x.o):x.p+' · '+x.n+' · '+teamName(x.o))); });
+      if(!state.ftarget||!byId[state.ftarget]||String(byId[state.ftarget].o)===state.me) state.ftarget=ts.options[0]&&ts.options[0].value; ts.value=state.ftarget; ts.addEventListener('change',function(){ state.ftarget=ts.value; state.finder=null; renderFinder(); }); sub.appendChild(ts); row.appendChild(sub); }
+    var shopBox=null;
+    if(state.fmode==='shop'){
+      var mineList=D.players.filter(function(x){ return String(x.o)===state.me && x.p!=='DEF' && x.v>=100; }).concat(D.picks.filter(function(k){ return String(k.o)===state.me; })).sort(function(a,b){ return b.v-a.v; });
+      state.fshopSet=state.fshopSet.filter(function(id){ return byId[id] && String(byId[id].o)===state.me; });
+      shopBox=el('div',{style:'display:grid;gap:6px'});
+      shopBox.appendChild(el('span',{class:'label'},'What you\u2019re shopping: tick one or more ('+state.fshopSet.length+' selected)'));
+      var sl=el('div',{class:'shoplist'});
+      mineList.forEach(function(x){ var id='shop-'+x.id.replace(/[^A-Za-z0-9_-]/g,'_'), lab=el('label',{for:id}), cb=el('input',{type:'checkbox',id:id});
+        cb.checked=state.fshopSet.indexOf(x.id)>=0;
+        cb.addEventListener('change',function(){ if(cb.checked) state.fshopSet.push(x.id); else state.fshopSet=state.fshopSet.filter(function(i){ return i!==x.id; }); state.finder=null; renderFinder(); });
+        lab.appendChild(cb); lab.appendChild(el('span',null,(x.kind==='pick'?'PK · '+pickLabel(x):x.p+' · '+x.n)+' · '+fmt(x.v))); sl.appendChild(lab); });
+      shopBox.appendChild(sl);
+    }
+    if(state.fmode==='position'||state.fmode==='target'||state.fmode==='shop'){
+      if(D.faab&&D.faab.budget){ var fl=el('label',{class:'check',for:'fUseFaab'}), fcb=el('input',{type:'checkbox',id:'fUseFaab'}); fcb.checked=state.fUseFaab;
+        fcb.addEventListener('change',function(){ state.fUseFaab=fcb.checked; state.finder=null; renderFinder(); });
+        fl.appendChild(fcb); fl.appendChild(el('span',null,'Use FAAB to balance close deals (you have $'+SUITE.faabLeft(D,state.me)+')')); row.appendChild(fl); }
+    }
     var go=el('button',{type:'button',class:'primary'},state.finder?'Search again':'Find trades'); row.appendChild(go);
     p.appendChild(row);
+    if(shopBox) p.appendChild(shopBox);
     var box=el('div',{class:'deals'}); p.appendChild(box); root.appendChild(p);
     function why(r){
       var b=[], gl=r.get.filter(function(a){return a.p;});
@@ -481,11 +517,12 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
         if(x.theirBefore!==x.theirAfter) b.push('Their '+x.pos+' room moves from '+ord(x.theirBefore)+' to '+ord(x.theirAfter)+'.'); }
       b.push(r.theirGain>=0?'Their lineup gains '+f1(r.theirGain)+' pts/week, so the deal helps them too.':'Their lineup loses '+f1(-r.theirGain)+' pts/week. They would be trading this season for dynasty value.');
       var sp=r.give.filter(function(a){return a.p===N.surplus;}); if(sp.length) b.push('Pays with your surplus at '+N.surplus+'.');
+      if(r.faab) b.push(r.faab.dir==='get'?'They add $'+r.faab.amt+' FAAB to even it out (they have $'+SUITE.faabLeft(D,r.team)+').':'You add $'+r.faab.amt+' FAAB to make it fair for them (you have $'+SUITE.faabLeft(D,state.me)+').');
       return b;
     }
     function show(){
       box.innerHTML='';
-      if(!state.finder){ box.appendChild(el('div',{class:'empty'},'Choose what you want and press Find trades.')); return; }
+      if(!state.finder){ box.appendChild(el('div',{class:'empty'},state.fmode==='shop'&&!state.fshopSet.length?'Tick at least one player or pick above, then press Find trades.':'Choose what you want and press Find trades.')); return; }
       if(!state.finder.length){ box.appendChild(el('div',{class:'empty'},'Nothing fair-looking turned up for that. Try another position, player or goal.')); return; }
       state.finder.forEach(function(r){
         var d=el('div',{class:'deal'}), top=el('div',{class:'deal-top'});
@@ -493,20 +530,21 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
         var v=ENGINE.verdict(r.edge); top.appendChild(el('span',{class:'chip tone-'+v.tone},v.label+' · '+f1(r.edge)+'%'));
         d.appendChild(top);
         var sides=el('div',{class:'deal-sides'});
-        [['You receive',r.get],['You send',r.give]].forEach(function(sd){ var c=el('div'); c.appendChild(el('span',{class:'label'},sd[0])); sd[1].forEach(function(a){ var line=el('div'); if(a.kind==='pick') line.textContent=pickLabel(a)+' · '+fmt(a.v); else { line.appendChild(nameBtn(a)); line.appendChild(el('span',{class:'muted small'},' '+a.p+' · '+fmt(a.v))); } c.appendChild(line); }); sides.appendChild(c); });
+        [['You receive',r.get],['You send',r.give]].forEach(function(sd){ var c=el('div'); c.appendChild(el('span',{class:'label'},sd[0])); sd[1].forEach(function(a){ var line=el('div'); if(a.kind==='pick') line.textContent=pickLabel(a)+' · '+fmt(a.v); else if(a.kind==='faab') line.textContent='$'+a.amt+' FAAB · worth '+fmt(a.v); else { line.appendChild(nameBtn(a)); line.appendChild(el('span',{class:'muted small'},' '+a.p+' · '+fmt(a.v))); } c.appendChild(line); }); sides.appendChild(c); });
         d.appendChild(sides);
         d.appendChild(el('span',{class:'label'},'Why it works'));
         var ul=el('ul',{class:'notes'}); why(r).forEach(function(x){ ul.appendChild(el('li',null,x)); }); d.appendChild(ul);
         var open=el('button',{type:'button'},'Open in Trade Analyzer');
-        open.addEventListener('click',function(){ state.partner=String(r.team); ptSel.value=state.partner; state.give=r.give.map(function(a){return a.id;}); state.get=r.get.map(function(a){return a.id;}); note('From Trade Finder.'); renderTrade(); showTab('trade'); window.scrollTo(0,0); });
+        open.addEventListener('click',function(){ state.partner=String(r.team); ptSel.value=state.partner; state.give=r.give.filter(function(a){return a.kind!=='faab';}).map(function(a){return a.id;}); state.get=r.get.filter(function(a){return a.kind!=='faab';}).map(function(a){return a.id;});
+          state.giveFaab=r.faab&&r.faab.dir==='give'?r.faab.amt:0; state.getFaab=r.faab&&r.faab.dir==='get'?r.faab.amt:0; syncFaabInputs(); note('From Trade Finder.'); renderTrade(); showTab('trade'); window.scrollTo(0,0); });
         d.appendChild(open); box.appendChild(d);
       });
     }
     go.addEventListener('click',function(){ go.disabled=true; go.textContent='Searching…'; setTimeout(function(){
       var m=state.fmode;
-      if(m==='position') state.finder=SUITE.find(D,state.me,{mode:'position',pos:state.fpos,limit:10});
-      else if(m==='target') state.finder=SUITE.find(D,state.me,{mode:'target',target:byId[state.ftarget],limit:8});
-      else if(m==='shop') state.finder=SUITE.find(D,state.me,{mode:'shop',shop:byId[state.fshop],limit:10});
+      if(m==='position') state.finder=SUITE.find(D,state.me,{mode:'position',pos:state.fpos,faab:state.fUseFaab,limit:10});
+      else if(m==='target') state.finder=SUITE.find(D,state.me,{mode:'target',target:byId[state.ftarget],faab:state.fUseFaab,limit:8});
+      else if(m==='shop'){ if(!state.fshopSet.length){ state.finder=null; renderFinder(); return; } state.finder=SUITE.find(D,state.me,{mode:'shop',shop:state.fshopSet.map(function(i){return byId[i];}),faab:state.fUseFaab,limit:12}); }
       else state.finder=SUITE.finder(D,state.me,{goal:m,limit:10});
       renderFinder(); },30); });
     show();
@@ -515,8 +553,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   // ---------- Trade Analyzer
   var ptSel=document.getElementById('partner');
   function fillPartners(){ ptSel.innerHTML=''; Object.keys(D.teams).forEach(function(id){ if(id!==state.me) ptSel.appendChild(el('option',{value:id},teamName(id)+' · '+D.teams[id].w+'-'+D.teams[id].l)); }); if(!state.partner||state.partner===state.me) state.partner=ptSel.options[0].value; ptSel.value=state.partner; }
-  ptSel.addEventListener('change',function(){ state.partner=ptSel.value; state.get=[]; note(''); renderTrade(); });
-  document.getElementById('clear').addEventListener('click',function(){ state.give=[]; state.get=[]; note(''); renderTrade(); });
+  ptSel.addEventListener('change',function(){ state.partner=ptSel.value; state.get=[]; state.getFaab=0; note(''); renderTrade(); });
+  document.getElementById('clear').addEventListener('click',function(){ state.give=[]; state.get=[]; state.giveFaab=0; state.getFaab=0; note(''); renderTrade(); });
   function note(t){ document.getElementById('tradeNote').textContent=t; }
   function assetsOf(team){ return D.players.filter(function(p){ return String(p.o)===team && p.p!=='DEF'; }).sort(function(a,b){ return b.v-a.v; }).concat(D.picks.filter(function(k){ return String(k.o)===team; }).sort(function(a,b){ return b.v-a.v; })); }
   function setupAdder(which){
@@ -536,9 +574,28 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     input.addEventListener('keydown',function(e){ if(e.key==='Escape'){ menu.hidden=true; input.blur(); } });
   }
   setupAdder('give'); setupAdder('get');
+  function faabFor(which){ var amt=which==='give'?state.giveFaab:state.getFaab; return amt>0?SUITE.faabAsset(D,which==='give'?state.me:state.partner,amt):null; }
+  function syncFaabInputs(){
+    var gi=document.getElementById('giveFaab'), ge=document.getElementById('getFaab'), rt=document.getElementById('faabRate');
+    gi.value=state.giveFaab; ge.value=state.getFaab; rt.value=D.faabRate;
+    var myLeft=SUITE.faabLeft(D,state.me), thLeft=SUITE.faabLeft(D,state.partner);
+    gi.max=myLeft; ge.max=thLeft;
+    document.getElementById('giveFaabNote').textContent='You have $'+myLeft+' left'+(state.giveFaab?' · worth '+fmt(state.giveFaab*D.faabRate):'');
+    document.getElementById('getFaabNote').textContent=teamName(state.partner)+' has $'+thLeft+' left'+(state.getFaab?' · worth '+fmt(state.getFaab*D.faabRate):'');
+  }
+  ['give','get'].forEach(function(which){
+    var inp=document.getElementById(which+'Faab');
+    inp.addEventListener('input',function(){ var max=SUITE.faabLeft(D,which==='give'?state.me:state.partner); var v=Math.max(0,Math.min(max,Math.round(parseFloat(inp.value)||0)));
+      state[which+'Faab']=v; if(String(v)!==inp.value&&inp.value!=='') inp.value=v; renderTrade(); });
+  });
+  document.getElementById('faabRate').addEventListener('change',function(e){ var v=parseFloat(e.target.value); if(!(v>=0)) v=(D.faab&&D.faab.rate)||15; D.faabRate=v; try{ localStorage.setItem('mvp-faab-rate',String(v)); }catch(err){} state.finder=null; renderFinder(); renderTrade(); });
   function renderList(which,res){
-    var box=document.getElementById(which+'List'); box.innerHTML=''; var ids=state[which];
-    if(!ids.length){ box.appendChild(el('div',{class:'empty'},which==='give'?'Nothing added yet. Search your roster below.':'Nothing added yet. Search '+teamName(state.partner)+'’s roster below.')); return; }
+    var box=document.getElementById(which+'List'); box.innerHTML=''; var ids=state[which], fa=faabFor(which);
+    if(fa){ var fr=el('div',{class:'asset'}); fr.appendChild(el('span',{class:'pos'},'$'));
+      var fm=el('div',{style:'min-width:0'}); fm.appendChild(el('div',{class:'nm'},'$'+fa.amt+' FAAB')); fm.appendChild(el('div',{class:'sub'},'Waiver budget at $1 = '+fmt(D.faabRate)+' value')); fr.appendChild(fm);
+      var fv=el('div',{class:'val'}); fv.appendChild(el('span',{class:'num'},fmt(fa.v))); fr.appendChild(fv);
+      var fx=el('button',{type:'button',class:'x','aria-label':'Remove FAAB'},'\u00d7'); fx.addEventListener('click',function(){ state[which+'Faab']=0; renderTrade(); }); fr.appendChild(fx); box.appendChild(fr); }
+    if(!ids.length&&!fa){ box.appendChild(el('div',{class:'empty'},which==='give'?'Nothing added yet. Search your roster below.':'Nothing added yet. Search '+teamName(state.partner)+'’s roster below.')); return; }
     var benched={}; ((res&&(which==='give'?res.give:res.get).benched)||[]).forEach(function(a){ benched[a.id]=1; });
     ids.forEach(function(id){ var a=byId[id], row=el('div',{class:'asset'});
       row.appendChild(el('span',{class:'pos'},a.kind==='pick'?'PK':a.p));
@@ -552,7 +609,9 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
       box.appendChild(row); });
   }
   function renderTrade(){
+    syncFaabInputs();
     var give=state.give.map(function(i){ return byId[i]; }), get=state.get.map(function(i){ return byId[i]; });
+    if(faabFor('give')) give=give.concat([faabFor('give')]); if(faabFor('get')) get=get.concat([faabFor('get')]);
     var res=(give.length&&get.length)?ENGINE.analyze(D,state.me,state.partner,give,get):null;
     renderList('give',res); renderList('get',res);
     document.getElementById('giveTotal').textContent=fmt(res?res.give.net:give.reduce(function(s,a){return s+a.v;},0));
@@ -571,6 +630,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     var bits=[];
     if(res.give.penalty) bits.push(fmt(res.give.penalty)+' taken off what you send: '+res.give.benched.map(function(a){return a.n;}).join(', ')+' would not start for '+teamName(state.partner)+'.');
     if(res.get.penalty) bits.push(fmt(res.get.penalty)+' taken off what you receive: '+res.get.benched.map(function(a){return a.n;}).join(', ')+' would not start for you.');
+    if(state.giveFaab||state.getFaab) bits.push('FAAB in the deal: '+(state.giveFaab?'you send $'+state.giveFaab:'')+(state.giveFaab&&state.getFaab?', ':'')+(state.getFaab?'you receive $'+state.getFaab:'')+', valued at '+fmt(D.faabRate)+' per dollar.');
     if(res.ageGive&&res.ageGet) bits.push('Value-weighted age: you send '+f1(res.ageGive)+', you receive '+f1(res.ageGet)+(res.ageGet<res.ageGive-0.5?' (younger, better for dynasty).':res.ageGet>res.ageGive+0.5?' (older, shorter dynasty window).':'.'));
     bits.push('Rest-of-season points: you send '+fmt(res.rosGive)+', you receive '+fmt(res.rosGet)+'.');
     var ul=el('ul',{class:'notes'}); bits.forEach(function(b){ ul.appendChild(el('li',null,b)); }); call.appendChild(ul);
@@ -608,7 +668,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     var f=SUITE.form(p); if(f) sh.appendChild(el('span',{class:'muted small'},'Average '+f1(f.avg)+' over '+f.n+' games, floor '+f1(f.lo)+', ceiling '+f1(f.hi)+'.'));
     if(p.p!=='DEF'&&D.sos[p.t]){ var s=D.sos[p.t][p.p]; sh.appendChild(el('div',null,'Rest-of-season schedule: opponents allow '+(s>=0?s+'% more':(-s)+'% fewer')+' points to '+p.p+'s than average'+(s>=5?' (soft).':s<=-5?' (tough).':' (neutral).'))); }
     var bye=(D.bye[p.t]||[]).filter(function(w){ return w>=D.week; })[0]; sh.appendChild(el('div',{class:'muted'},bye?'Bye: Week '+bye:'Bye already passed'));
-    if(p.o && String(p.o)!==state.me && p.p!=='DEF'){ var tb=el('button',{type:'button',class:'primary'},'Trade for '+p.n); tb.addEventListener('click',function(){ state.partner=String(p.o); ptSel.value=state.partner; state.get=[p.id]; state.give=[]; note(''); renderTrade(); showTab('trade'); close(); }); sh.appendChild(tb); }
+    if(p.o && String(p.o)!==state.me && p.p!=='DEF'){ var tb=el('button',{type:'button',class:'primary'},'Trade for '+p.n); tb.addEventListener('click',function(){ state.partner=String(p.o); ptSel.value=state.partner; state.get=[p.id]; state.give=[]; state.getFaab=0; state.giveFaab=0; note(''); renderTrade(); showTab('trade'); close(); }); sh.appendChild(tb); }
     root.appendChild(bg); root.appendChild(sh); cb.focus();
   }
 
