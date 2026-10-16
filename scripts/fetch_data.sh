@@ -6,6 +6,7 @@ LEAGUE=1363627098706550784
 SEASON=2026
 WEEK=${WEEK:-$(curl -sS https://api.sleeper.app/v1/state/nfl | python3 -c 'import json,sys;print(json.load(sys.stdin)["week"])')}
 mkdir -p raw
+curl -sS -o raw/state.json https://api.sleeper.app/v1/state/nfl
 curl -sS -o raw/players.json https://api.sleeper.app/v1/players/nfl
 for f in rosters users traded_picks; do curl -sS -o raw/$f.json https://api.sleeper.app/v1/league/$LEAGUE/$f; done
 mv raw/traded_picks.json raw/picks.json

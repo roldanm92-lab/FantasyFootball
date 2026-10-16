@@ -182,10 +182,10 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
       <div class="explain" style="margin-top:6px">
         <p><strong>Projections.</strong> Sleeper's weekly projections for weeks 6–18, re-scored with MVP FOOTBALL settings: full PPR, 6-pt passing TDs, +0.5 per TE catch, and expected 100/200-yd and 300/400-yd bonuses. Past games use actual stats with the same scoring.</p>
         <p><strong>Rankings.</strong> Value over replacement. Replacement level at each position is set by how many players the 12 teams actually start there (superflex and both flex spots included).</p>
-        <p><strong>Matchups.</strong> Fantasy points each defense has allowed per game to each position in weeks 1–5, in your league's scoring. Matchup score runs 10 (toughest) to 100 (softest).</p>
+        <p><strong>Matchups.</strong> Fantasy points each defense has allowed per game to each position in all games played so far this season, in your league's scoring. Matchup score runs 10 (toughest) to 100 (softest).</p>
         <p><strong>Trade value.</strong> Dynasty market values for 12-team superflex PPR (FantasyCalc). Values marked <em>est</em> are outside that feed's top 100 and estimated from DynastyProcess values on the same scale. 2nd and 3rd round pick values are estimates.</p>
         <p><strong>Trade grade.</strong> A player who would not start for his new team counts 30% less. Trade edge is value received divided by all value in the deal: 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass.</p>
-        <p><strong>Season outlook.</strong> Each team’s weekly score is its best projected lineup for that week (byes included) plus random variation sized from this league’s actual scores in weeks 1–5. The rest of the regular season is played out thousands of times; playoff odds are the share of runs a team finishes in the top 6.</p>
+        <p><strong>Season outlook.</strong> Each team’s weekly score is its best projected lineup for that week (byes included) plus random variation sized from this league’s actual scores so far this season. The rest of the regular season is played out thousands of times; playoff odds are the share of runs a team finishes in the top 6.</p>
         <p><strong>Waivers.</strong> A pickup counts as helping now only if he would make your best lineup. The suggested drop is the bench player with the least trade value and rest-of-season output.</p>
         <p><strong>Trade Finder.</strong> Tests every 1-for-1, 2-for-1 and 1-for-2 deal between your top players and 1st/2nd-round picks and each team's top players. It keeps deals graded 48–60% for you, so the other side is not asked to take a lopsided loss. Position rooms are ranked by your top 2 QB, 3 RB, 4 WR and 1 TE.</p><p><strong>Estimated values.</strong> Players outside the market feed's top 100 are estimated from RotoBot's league-wide player scores where available (fit to market values), otherwise from DynastyProcess values.</p>
         <p id="asof"></p>
@@ -352,7 +352,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
       starters.map(function(p){ var m=SUITE.matchup(D,p); return {cells:[p.p,{node:nameBtn(p)},p.op||'BYE',{node:mchip(p)},{t:m?f1(m.pg):'—',num:1},m?ord(m.tough)+' toughest':'—']}; })));
     wrap.appendChild(mine);
 
-    var dv=panel('Points allowed by position','Per game, weeks 1–5, in your league’s scoring. Green is soft, red is tough.');
+    var dv=panel('Points allowed by position','Per game, weeks 1\u2013'+(D.week-1)+', in your league\u2019s scoring. Green is soft, red is tough.');
     var teams=Object.keys(D.dvp).sort();
     var ext={}; SUITE.POS.forEach(function(pos){ var xs=teams.map(function(t){ return D.dvp[t][pos].pg; }); ext[pos]=[Math.min.apply(null,xs),Math.max.apply(null,xs)]; });
     var tw=el('div',{class:'tw'}), t=el('table'), hr=el('tr');
@@ -600,10 +600,10 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     sh.appendChild(st);
     var m=SUITE.matchup(D,p); if(m) sh.appendChild(el('div',{class:'alert'},'Week '+D.week+' matchup score '+m.score+'. '+p.op+' allows '+m.pg+' pts/game to '+p.p+'s, '+ord(m.tough)+' toughest in the league.'));
     // game log bars
-    sh.appendChild(el('span',{class:'label'},'Weeks 1–5 and Week '+D.week+' projection (your scoring)'));
+    sh.appendChild(el('span',{class:'label'},'Weeks '+(D.logStart||1)+'\u2013'+(D.week-1)+' and Week '+D.week+' projection (your scoring)'));
     var vals=(p.log||[]).concat([p.w]), mx=Math.max.apply(null,vals.map(function(v){return v||0;}).concat([1]));
     var bars=el('div',{class:'bars'});
-    vals.forEach(function(v,i){ var b=el('div',{class:'bar'+(i===5?' proj':'')}); b.appendChild(el('span',{class:'num'},v==null?'—':f1(v))); var bi=el('i'); bi.style.height=Math.max(2,Math.round(((v||0)/mx)*80))+'px'; b.appendChild(bi); b.appendChild(el('span',{class:'muted'},i===5?'W'+D.week:'W'+(i+1))); bars.appendChild(b); });
+    vals.forEach(function(v,i){ var b=el('div',{class:'bar'+(i===vals.length-1?' proj':'')}); b.appendChild(el('span',{class:'num'},v==null?'—':f1(v))); var bi=el('i'); bi.style.height=Math.max(2,Math.round(((v||0)/mx)*80))+'px'; b.appendChild(bi); b.appendChild(el('span',{class:'muted'},i===vals.length-1?'W'+D.week:'W'+((D.logStart||1)+i))); bars.appendChild(b); });
     sh.appendChild(bars);
     var f=SUITE.form(p); if(f) sh.appendChild(el('span',{class:'muted small'},'Average '+f1(f.avg)+' over '+f.n+' games, floor '+f1(f.lo)+', ceiling '+f1(f.hi)+'.'));
     if(p.p!=='DEF'&&D.sos[p.t]){ var s=D.sos[p.t][p.p]; sh.appendChild(el('div',null,'Rest-of-season schedule: opponents allow '+(s>=0?s+'% more':(-s)+'% fewer')+' points to '+p.p+'s than average'+(s>=5?' (soft).':s<=-5?' (tough).':' (neutral).'))); }
