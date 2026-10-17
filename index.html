@@ -121,6 +121,21 @@ td.heat{font-family:var(--f-mono);text-align:right}
 .shoplist label{display:flex;gap:8px;align-items:center;font-size:13px;min-width:0}
 .shoplist label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .check{display:flex;gap:8px;align-items:center;font-size:13px}
+.bracket{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:center}
+@media (max-width:860px){.bracket{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.bracket{grid-template-columns:1fr}}
+.round{display:grid;gap:12px;align-content:center;min-width:0}
+.round h3{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.game{border:1px solid var(--line);border-radius:6px;overflow:hidden;min-width:0}
+.game .tm{display:grid;grid-template-columns:22px minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 8px;font-size:13px}
+.game .tm+.tm{border-top:1px solid var(--line)}
+.game .tm.win{background:var(--good-bg);font-weight:600}
+.game .tm.me .nmx{text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:2px;text-underline-offset:3px}
+.game .sd{font-family:var(--f-mono);color:var(--muted);font-size:12px;text-align:center}
+.game .nmx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.game .bye{padding:8px;font-size:12px;color:var(--muted)}
+.champ{border:2px solid var(--accent);border-radius:8px;padding:12px;display:grid;gap:4px;justify-items:start}
+.champ b{font-family:var(--f-display);font-size:24px;line-height:1.1}
 .explain{display:grid;gap:8px;font-size:13px;color:var(--muted);max-width:75ch}
 .explain p{margin:0}
 details summary{cursor:pointer;font-weight:600;color:var(--ink)}
@@ -195,6 +210,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
         <p><strong>Trade value.</strong> Dynasty market values for 12-team superflex PPR (FantasyCalc). Values marked <em>est</em> are outside that feed's top 100 and estimated from DynastyProcess values on the same scale. 2nd and 3rd round pick values are estimates.</p>
         <p><strong>Trade grade.</strong> A player who would not start for his new team counts 30% less. Trade edge is value received divided by all value in the deal: 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass.</p>
         <p><strong>Season outlook.</strong> Each team’s weekly score is its best projected lineup for that week (byes included) plus random variation sized from this league’s actual scores so far this season. The rest of the regular season is played out thousands of times; playoff odds are the share of runs a team finishes in the top 6.</p>
+        <p><strong>Playoff bracket.</strong> Sleeper\u2019s 6-team format: seeds 3v6 and 4v5 in Week 15, the 1 seed plays the 4/5 winner and the 2 seed the 3/6 winner in Week 16, final in Week 17. The bracket shown is the single most likely path; title odds come from playing out every simulated season, so they include the chance seeds land differently.</p>
         <p><strong>Waivers.</strong> A pickup counts as helping now only if he would make your best lineup. The suggested drop is the bench player with the least trade value and rest-of-season output.</p>
         <p><strong>Trade Finder.</strong> Tests every 1-for-1, 2-for-1 and 1-for-2 deal between your top players and 1st/2nd-round picks and each team's top players. It keeps deals graded 48–60% for you, so the other side is not asked to take a lopsided loss. Position rooms are ranked by your top 2 QB, 3 RB, 4 WR and 1 TE.</p><p><strong>FAAB.</strong> Remaining waiver budget can be added to either side of a trade. Its value per dollar defaults to the median of this league\u2019s winning bids of $10 or more, divided into the bought player\u2019s trade value; change it in the Trade Analyzer. Trade Finder can use FAAB to even out deals that would otherwise land just outside the fair range.</p>
         <p><strong>2027 picks.</strong> Valued by where the original team is projected to finish in the season simulation, assuming the rookie draft goes in reverse order of final standings. Picks 1\u20134 are early, 5\u20138 mid, 9\u201312 late.</p>
@@ -728,6 +744,62 @@ SUITE.find = function (D, me, opts) {
   });
   return res.slice(0, opts.limit || 10);
 };
+
+// ---------- playoffs: Sleeper 6-team bracket (no reseeding)
+// Wk A: 3v6, 4v5 · Wk B: 1 vs winner(4v5), 2 vs winner(3v6) · Wk C: final
+SUITE.meansRange = function (D, from, to) {
+  var out = {};
+  Object.keys(D.teams).forEach(function (t) {
+    var roster = D.players.filter(function (p) { return String(p.o) === t; });
+    out[t] = {};
+    for (var w = from; w <= to; w++) {
+      var i = w - D.week;
+      var off = roster.filter(function (p) { return p.p !== 'DEF'; }).map(function (p) { var x = (p.wp || [])[i] || 0; return { id: p.id, p: p.p, r: x, g: x > 0 ? 1 : 0 }; });
+      var def = roster.filter(function (p) { return p.p === 'DEF'; }).map(function (p) { return (p.wp || [])[i] || 0; }).sort(function (a, b) { return b - a; })[0] || 0;
+      out[t][w] = ENGINE.lineup(off).ppg + def;
+    }
+  });
+  return out;
+};
+SUITE.winProb = function (a, b, sd) {
+  var x = (a - b) / (sd * Math.SQRT2);
+  var t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2);
+  var p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return x > 0 ? 1 - p : p;
+};
+SUITE.playoffs = function (D, n) {
+  n = n || 6000;
+  var teams = Object.keys(D.teams), sd = D.teamSd || 25;
+  var start = D.playoffStart || 15, end = start - 1, wA = start, wB = start + 1, wC = start + 2;
+  var reg = SUITE.weekMeans(D), po = SUITE.meansRange(D, wA, wC);
+  var seed = 9871; function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+  function gauss() { var u = 1 - rnd(), v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function play(a, b, w) { return po[a][w] + gauss() * sd > po[b][w] + gauss() * sd ? a : b; }
+  var st = {}; teams.forEach(function (t) { st[t] = { seedSum: 0, made: 0, semis: 0, final: 0, champ: 0, seeds: new Array(teams.length + 1).fill(0) }; });
+  for (var s = 0; s < n; s++) {
+    var W = {}, PF = {}; teams.forEach(function (t) { W[t] = D.teams[t].w; PF[t] = D.teams[t].pf; });
+    for (var w = D.week; w <= end; w++) (D.lsched[String(w)] || []).forEach(function (pr) {
+      var a = String(pr[0]), b = String(pr[1]), sa = reg[a][w] + gauss() * sd, sb = reg[b][w] + gauss() * sd;
+      PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
+    });
+    var o = teams.slice().sort(function (x, y) { return (W[y] - W[x]) || (PF[y] - PF[x]); });
+    o.forEach(function (t, i) { st[t].seeds[i + 1]++; st[t].seedSum += i + 1; });
+    o.slice(0, 6).forEach(function (t) { st[t].made++; });
+    var w45 = play(o[3], o[4], wA), w36 = play(o[2], o[5], wA);
+    [o[0], o[1], w45, w36].forEach(function (t) { st[t].semis++; });
+    var f1 = play(o[0], w45, wB), f2 = play(o[1], w36, wB);
+    st[f1].final++; st[f2].final++;
+    st[play(f1, f2, wC)].champ++;
+  }
+  teams.forEach(function (t) { var x = st[t]; x.avgSeed = x.seedSum / n; ['made', 'semis', 'final', 'champ'].forEach(function (k) { x[k] /= n; }); });
+  // projected bracket: rank by average finishing position
+  var proj = teams.slice().sort(function (a, b) { return st[a].avgSeed - st[b].avgSeed; }).slice(0, 6);
+  function game(a, b, w) { var p = SUITE.winProb(po[a][w], po[b][w], sd); return { a: a, b: b, week: w, pa: p, ptsA: po[a][w], ptsB: po[b][w], winner: p >= 0.5 ? a : b }; }
+  var r1a = game(proj[3], proj[4], wA), r1b = game(proj[2], proj[5], wA);
+  var sf1 = game(proj[0], r1a.winner, wB), sf2 = game(proj[1], r1b.winner, wB);
+  var fin = game(sf1.winner, sf2.winner, wC);
+  return { stats: st, n: n, seeds: proj, weeks: [wA, wB, wC], r1: [r1a, r1b], semis: [sf1, sf2], final: fin };
+};
 </script>
 <script>
 (function(){
@@ -745,7 +817,7 @@ SUITE.find = function (D, me, opts) {
   function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
   function f1(n){ return (Math.round(n*10)/10).toFixed(1); }
   function ord(n){ var s=['th','st','nd','rd'],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
-  function teamName(id){ var t=D.teams[id]; return t?(t.name||t.user):'Free agent'; }
+  function teamName(id){ var t=D.teams[id]; return t?(t.user||t.name):'Free agent'; }
   function pickLabel(k){ return k.s+' '+['','1st','2nd','3rd'][k.rd]+(k.tag?' ('+k.tag+')':'')+(k.orig!=k.o?' · via '+teamName(k.orig):''); }
   function ppg(p){ return p.g?p.r/p.g:0; }
   function nameBtn(p){ var b=el('button',{type:'button',class:'linkish'},p.n); b.addEventListener('click',function(){ openPlayer(p.id); }); var w=el('span'); w.appendChild(b); if(p.inj) w.appendChild(el('span',{class:'inj'},p.inj)); return w; }
@@ -764,7 +836,7 @@ SUITE.find = function (D, me, opts) {
   ['12 teams','Dynasty','Superflex','Full PPR','6-pt pass TD','TE +0.5','Yardage bonuses','Week '+D.week].forEach(function(t){ document.getElementById('leagueTags').appendChild(el('span',{class:'tag'},t)); });
   document.getElementById('asof').textContent='Data pulled '+D.asofLabel+' from Sleeper (rosters, lineups, projections, stats), FantasyCalc and DynastyProcess (values). Ask Claude to refresh it.';
   var meSel=document.getElementById('me');
-  Object.keys(D.teams).forEach(function(id){ meSel.appendChild(el('option',{value:id},teamName(id)+(D.teams[id].name!==D.teams[id].user?' ('+D.teams[id].user+')':''))); });
+  Object.keys(D.teams).forEach(function(id){ meSel.appendChild(el('option',{value:id},teamName(id)+(D.teams[id].name&&D.teams[id].name!==D.teams[id].user?' ('+D.teams[id].name.trim()+')':''))); });
   meSel.value=state.me;
   meSel.addEventListener('change',function(){ state.me=meSel.value; state.give=[]; state.get=[]; state.giveFaab=0; state.getFaab=0; state.fshopSet=[]; state.finder=null; state.fpos=null; state.cmpA=state.cmpB=null; fillPartners(); renderAll(); });
 
@@ -958,6 +1030,29 @@ SUITE.find = function (D, me, opts) {
       ids.map(function(id){ var s=SIM.stats[id], t=D.teams[id], c=s.playoff>=0.75?'m-good':s.playoff<=0.25?'m-bad':'m-mid';
         return {cls:id===me?'mine':null,cells:[teamName(id),{t:t.w+'-'+t.l,num:1},{t:fmt(t.pf),num:1},{t:f1(s.wins),num:1},{node:el('span',{class:'chip '+c},Math.round(s.playoff*100)+'%')},{t:Math.round(s.bye*100)+'%',num:1},{t:Math.round(s.first*100)+'%',num:1}]}; })));
     wrap.appendChild(lg);
+
+    // projected playoff bracket
+    if(!window.__PO) window.__PO=SUITE.playoffs(D,6000);
+    var PO=window.__PO, W=PO.weeks;
+    var bp=panel('Projected playoff bracket','Seeds ranked by average finishing position across '+fmt(PO.n)+' simulated seasons. Each game uses both teams\u2019 best projected lineup for that week. Round 1 is Week '+W[0]+', semifinals Week '+W[1]+', final Week '+W[2]+'. Top 2 seeds get byes; no reseeding.');
+    var seedOf={}; PO.seeds.forEach(function(t,i){ seedOf[t]=i+1; });
+    function teamRow(team,pts,prob,win){ var r=el('div',{class:'tm'+(win?' win':'')+(team===state.me?' me':'')}); r.appendChild(el('span',{class:'sd'},String(seedOf[team]))); r.appendChild(el('span',{class:'nmx',title:teamName(team)},teamName(team))); r.appendChild(el('span',{class:'num small muted'},f1(pts))); r.appendChild(el('span',{class:'num'},Math.round(prob*100)+'%')); return r; }
+    function gameBox(g){ var b=el('div',{class:'game'}); b.appendChild(teamRow(g.a,g.ptsA,g.pa,g.winner===g.a)); b.appendChild(teamRow(g.b,g.ptsB,1-g.pa,g.winner===g.b)); return b; }
+    function byeBox(team){ var b=el('div',{class:'game'}); b.appendChild(teamRow(team,0,1,true)); b.firstChild.lastChild.textContent='bye'; b.firstChild.children[2].textContent=''; return b; }
+    var br=el('div',{class:'bracket'});
+    var c1=el('div',{class:'round'}); c1.appendChild(el('h3',null,'Round 1 · Week '+W[0]));
+    c1.appendChild(byeBox(PO.seeds[0])); c1.appendChild(gameBox(PO.r1[0])); c1.appendChild(gameBox(PO.r1[1])); c1.appendChild(byeBox(PO.seeds[1])); br.appendChild(c1);
+    var c2=el('div',{class:'round'}); c2.appendChild(el('h3',null,'Semifinals · Week '+W[1])); c2.appendChild(gameBox(PO.semis[0])); c2.appendChild(gameBox(PO.semis[1])); br.appendChild(c2);
+    var c3=el('div',{class:'round'}); c3.appendChild(el('h3',null,'Final · Week '+W[2])); c3.appendChild(gameBox(PO.final)); br.appendChild(c3);
+    var c4=el('div',{class:'round'}); c4.appendChild(el('h3',null,'Projected champion'));
+    var ch=el('div',{class:'champ'}); ch.appendChild(el('b',null,teamName(PO.final.winner))); ch.appendChild(el('span',{class:'muted small'},'Wins this bracket. Title odds across all simulations: '+(PO.stats[PO.final.winner].champ*100).toFixed(1)+'%.')); c4.appendChild(ch); br.appendChild(c4);
+    bp.appendChild(br);
+    bp.appendChild(el('span',{class:'muted small'},'Each team row: seed, projected points that week, chance to win that game. Green marks the projected winner.'));
+    var ids2=Object.keys(D.teams).filter(function(t){ return PO.stats[t].made>0.005; }).sort(function(a,b){ return PO.stats[b].champ-PO.stats[a].champ; });
+    bp.appendChild(el('span',{class:'label'},'Title odds, all simulations (seeding and every game played out)'));
+    bp.appendChild(table([{t:'Team'},{t:'Avg finish',r:1},{t:'Playoffs',r:1},{t:'Semifinal',r:1},{t:'Final',r:1},{t:'Champion',r:1}],
+      ids2.map(function(t){ var s=PO.stats[t]; return {cls:t===state.me?'mine':null,cells:[teamName(t),{t:f1(s.avgSeed),num:1},{t:Math.round(s.made*100)+'%',num:1},{t:Math.round(s.semis*100)+'%',num:1},{t:Math.round(s.final*100)+'%',num:1},{t:(s.champ*100).toFixed(1)+'%',num:1}]}; })));
+    wrap.appendChild(bp);
   }
 
   // ---------- Waivers & injuries

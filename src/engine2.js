@@ -397,3 +397,59 @@ SUITE.find = function (D, me, opts) {
   });
   return res.slice(0, opts.limit || 10);
 };
+
+// ---------- playoffs: Sleeper 6-team bracket (no reseeding)
+// Wk A: 3v6, 4v5 · Wk B: 1 vs winner(4v5), 2 vs winner(3v6) · Wk C: final
+SUITE.meansRange = function (D, from, to) {
+  var out = {};
+  Object.keys(D.teams).forEach(function (t) {
+    var roster = D.players.filter(function (p) { return String(p.o) === t; });
+    out[t] = {};
+    for (var w = from; w <= to; w++) {
+      var i = w - D.week;
+      var off = roster.filter(function (p) { return p.p !== 'DEF'; }).map(function (p) { var x = (p.wp || [])[i] || 0; return { id: p.id, p: p.p, r: x, g: x > 0 ? 1 : 0 }; });
+      var def = roster.filter(function (p) { return p.p === 'DEF'; }).map(function (p) { return (p.wp || [])[i] || 0; }).sort(function (a, b) { return b - a; })[0] || 0;
+      out[t][w] = ENGINE.lineup(off).ppg + def;
+    }
+  });
+  return out;
+};
+SUITE.winProb = function (a, b, sd) {
+  var x = (a - b) / (sd * Math.SQRT2);
+  var t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2);
+  var p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return x > 0 ? 1 - p : p;
+};
+SUITE.playoffs = function (D, n) {
+  n = n || 6000;
+  var teams = Object.keys(D.teams), sd = D.teamSd || 25;
+  var start = D.playoffStart || 15, end = start - 1, wA = start, wB = start + 1, wC = start + 2;
+  var reg = SUITE.weekMeans(D), po = SUITE.meansRange(D, wA, wC);
+  var seed = 9871; function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+  function gauss() { var u = 1 - rnd(), v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function play(a, b, w) { return po[a][w] + gauss() * sd > po[b][w] + gauss() * sd ? a : b; }
+  var st = {}; teams.forEach(function (t) { st[t] = { seedSum: 0, made: 0, semis: 0, final: 0, champ: 0, seeds: new Array(teams.length + 1).fill(0) }; });
+  for (var s = 0; s < n; s++) {
+    var W = {}, PF = {}; teams.forEach(function (t) { W[t] = D.teams[t].w; PF[t] = D.teams[t].pf; });
+    for (var w = D.week; w <= end; w++) (D.lsched[String(w)] || []).forEach(function (pr) {
+      var a = String(pr[0]), b = String(pr[1]), sa = reg[a][w] + gauss() * sd, sb = reg[b][w] + gauss() * sd;
+      PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
+    });
+    var o = teams.slice().sort(function (x, y) { return (W[y] - W[x]) || (PF[y] - PF[x]); });
+    o.forEach(function (t, i) { st[t].seeds[i + 1]++; st[t].seedSum += i + 1; });
+    o.slice(0, 6).forEach(function (t) { st[t].made++; });
+    var w45 = play(o[3], o[4], wA), w36 = play(o[2], o[5], wA);
+    [o[0], o[1], w45, w36].forEach(function (t) { st[t].semis++; });
+    var f1 = play(o[0], w45, wB), f2 = play(o[1], w36, wB);
+    st[f1].final++; st[f2].final++;
+    st[play(f1, f2, wC)].champ++;
+  }
+  teams.forEach(function (t) { var x = st[t]; x.avgSeed = x.seedSum / n; ['made', 'semis', 'final', 'champ'].forEach(function (k) { x[k] /= n; }); });
+  // projected bracket: rank by average finishing position
+  var proj = teams.slice().sort(function (a, b) { return st[a].avgSeed - st[b].avgSeed; }).slice(0, 6);
+  function game(a, b, w) { var p = SUITE.winProb(po[a][w], po[b][w], sd); return { a: a, b: b, week: w, pa: p, ptsA: po[a][w], ptsB: po[b][w], winner: p >= 0.5 ? a : b }; }
+  var r1a = game(proj[3], proj[4], wA), r1b = game(proj[2], proj[5], wA);
+  var sf1 = game(proj[0], r1a.winner, wB), sf2 = game(proj[1], r1b.winner, wB);
+  var fin = game(sf1.winner, sf2.winner, wC);
+  return { stats: st, n: n, seeds: proj, weeks: [wA, wB, wC], r1: [r1a, r1b], semis: [sf1, sf2], final: fin };
+};
