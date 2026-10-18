@@ -147,6 +147,44 @@ import statistics
 resid=[x-statistics.mean(v) for v in scores.values() if len(v)>1 for x in v]
 team_sd=round(statistics.pstdev(resid),1) if resid else 25.0
 ls=L['settings']
+# live scoring for the week in progress: actual points + projections for players yet to finish
+live=None
+try:
+    SCH=[g for g in json.load(open(S+'schedule.json')) if g['week']==WEEK]
+    MW=json.load(open(S+f'm{WEEK}.json'))
+except FileNotFoundError:
+    SCH,MW=[],[]
+status={}; frac={}
+for g in SCH: status[g['home']]=g['status']; status[g['away']]=g['status']
+def _left(m):
+    # share of the game still to play, from Sleeper's live clock
+    q=m.get('quarter'); qn=m.get('quarter_num'); tr=m.get('time_remaining') or '0:00'
+    if q=='HALF': return 0.5
+    try:
+        qn=int(qn); mm,ss=[int(v) for v in tr.split(':')]
+    except (TypeError,ValueError): return 0.5
+    if qn>=5: return 0.05
+    return max(0.0,min(1.0,((4-qn)*15+mm+ss/60)/60))
+try:
+    for g in json.load(open(S+'scores.json')):
+        m=g.get('metadata') or {}
+        if g.get('status')=='in_game':
+            fr=_left(m); frac[m.get('home_team')]=fr; frac[m.get('away_team')]=fr
+except FileNotFoundError: pass
+if any(v in ('complete','in_game') for v in status.values()):
+    REMAIN={'complete':0.0,'in_game':0.5,'pre_game':1.0}
+    lt={}
+    for m in MW:
+        rid=m['roster_id']; pts=m.get('points') or 0; rem=0; full=0; left=[]
+        for pid in (m.get('starters') or []):
+            if pid=='0': continue
+            pl=P.get(pid) or {}; tm=pid if pid.isalpha() else pl.get('team')
+            stt=status.get(tm,'complete'); pr=wk.get(pid,0)
+            full+=pr; r=pr*(frac.get(tm,0.5) if stt=='in_game' else REMAIN.get(stt,0)); rem+=r
+            if stt!='complete': left.append(dict(id=pid,n=(pl.get('full_name') or (pid+' D/ST')),st=stt,frac=round(frac.get(tm,1.0 if stt=='pre_game' else 0.5),2),proj=round(pr,1),now=round((m.get('players_points') or {}).get(pid,0),1)))
+        sd=team_sd*math.sqrt(rem/full) if full>0 else 0
+        lt[str(rid)]=dict(pts=round(pts,2),rem=round(rem,1),proj=round(pts+rem,1),sd=round(sd,1),left=left)
+    live=dict(week=WEEK,teams=lt)
 # FAAB: budgets, remaining, and $ -> value rate from this league's winning bids
 budget=ls.get('waiver_budget') or 0
 faab_left={r['roster_id']:max(0,budget-(r['settings'].get('waiver_budget_used') or 0)) for r in R}
@@ -164,7 +202,7 @@ faab_rate=round(statistics.median(ratios)) if len(ratios)>=5 else 15
 from zoneinfo import ZoneInfo
 import datetime as _dt
 out=dict(asofLabel=_dt.datetime.now(ZoneInfo('America/New_York')).strftime('%b %d, %Y, %I:%M %p ET'),week=WEEK,logStart=LOG0,league=dict(id=L['league_id'],name=L['name'],slots=L['roster_positions']),me=12,
-    teams=teamsinfo,players=players,picks=picks,bye=bye,sched={t:{str(w):o for w,o in d.items()} for t,d in sched.items()},dvp=dvp,sos=sos,lsched={str(w):v for w,v in sched_l.items()},teamSd=team_sd,playoffTeams=ls.get('playoff_teams',6),faab=dict(budget=budget,left={str(k):v for k,v in faab_left.items()},rate=faab_rate,bids=len(ratios)),tradeDeadline=ls.get('trade_deadline'),playoffStart=ls.get('playoff_week_start',15))
+    teams=teamsinfo,players=players,picks=picks,bye=bye,sched={t:{str(w):o for w,o in d.items()} for t,d in sched.items()},dvp=dvp,sos=sos,lsched={str(w):v for w,v in sched_l.items()},teamSd=team_sd,playoffTeams=ls.get('playoff_teams',6),live=live,faab=dict(budget=budget,left={str(k):v for k,v in faab_left.items()},rate=faab_rate,bids=len(ratios)),tradeDeadline=ls.get('trade_deadline'),playoffStart=ls.get('playoff_week_start',15))
 json.dump(out,open('data/data.json','w'),separators=(',',':'))
 print(len(players),'players;',sum(1 for p in players if p['o']==0),'free agents;',len(dvp),'defenses')
 for nm in ['Jaxon Smith-Njigba','Travis Kelce','Jayden Daniels','Trevor Lawrence','Drake Maye']:

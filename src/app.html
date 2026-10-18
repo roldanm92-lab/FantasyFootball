@@ -136,6 +136,13 @@ td.heat{font-family:var(--f-mono);text-align:right}
 .game .bye{padding:8px;font-size:12px;color:var(--muted)}
 .champ{border:2px solid var(--accent);border-radius:8px;padding:12px;display:grid;gap:4px;justify-items:start}
 .champ b{font-family:var(--f-display);font-size:24px;line-height:1.1}
+.live{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:center}
+.live .side{display:grid;gap:2px;min-width:0}
+.live .side.r{text-align:right;justify-items:end}
+.live .big{font-family:var(--f-mono);font-size:30px;font-weight:500;line-height:1.1}
+.live .vs{font-family:var(--f-display);font-weight:700;color:var(--muted)}
+.wpbar{height:10px;border-radius:5px;background:var(--bad-bg);overflow:hidden}
+.wpbar i{display:block;height:100%;background:var(--good)}
 .explain{display:grid;gap:8px;font-size:13px;color:var(--muted);max-width:75ch}
 .explain p{margin:0}
 details summary{cursor:pointer;font-weight:600;color:var(--ink)}
@@ -295,6 +302,30 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     alerts.forEach(function(a){ top.appendChild(el('div',{class:'alert'},a)); });
     wrap.appendChild(top);
 
+    // live scoreboard for the week in progress
+    if(D.live&&D.live.week===D.week){
+      var SIMx={means:SUITE.weekMeans(D),sd:D.teamSd,end:(D.playoffStart||15)-1};
+      var g=SUITE.mySchedule(D,state.me,SIMx).filter(function(x){ return x.week===D.week; })[0];
+      if(g){
+        var Lm=D.live.teams[state.me], Lo=D.live.teams[g.opp];
+        var lp=panel('Week '+D.week+' live','Score as of '+D.asofLabel+'. Projected final = points so far + projections for players still to play, scaled by time left in their games.');
+        var lv=el('div',{class:'live'});
+        function sideBox(team,L,right){ var b=el('div',{class:'side'+(right?' r':'')}); b.appendChild(el('span',{class:'label'},teamName(team))); b.appendChild(el('span',{class:'big'},f1(L.pts))); b.appendChild(el('span',{class:'muted small'},'Projected final '+f1(L.proj)+' · '+L.left.length+' still playing')); return b; }
+        lv.appendChild(sideBox(state.me,Lm,false)); lv.appendChild(el('span',{class:'vs'},'VS')); lv.appendChild(sideBox(g.opp,Lo,true));
+        lp.appendChild(lv);
+        var bar=el('div',{class:'wpbar',role:'img','aria-label':'Win chance '+Math.round(g.win*100)+' percent'}), bi=el('i'); bi.style.width=Math.round(g.win*100)+'%'; bar.appendChild(bi); lp.appendChild(bar);
+        lp.appendChild(el('div',{class:'alert'},'Win chance: '+Math.round(g.win*100)+'%. '+(g.win>=0.65?'You\u2019re in good shape.':g.win<=0.35?'You need your remaining players to outscore their projections.':'Too close to call; it comes down to the players still on the field.')));
+        function leftTable(L,who){ if(!L.left.length) return el('div',{class:'empty'},who+': everyone is done.');
+          return table([{t:who+' still playing'},{t:'Status'},{t:'Now',r:1},{t:'Full-game proj',r:1}], L.left.map(function(x){ return {cells:[x.n,x.st==='pre_game'?'Not started':Math.round((x.frac||0)*100)+'% of game left',{t:f1(x.now),num:1},{t:f1(x.proj),num:1}]}; })); }
+        var g2=el('div',{class:'grid2'}); g2.appendChild(leftTable(Lm,'You')); g2.appendChild(leftTable(Lo,teamName(g.opp))); lp.appendChild(g2);
+        var others=(D.lsched[String(D.week)]||[]).filter(function(pr){ return String(pr[0])!==state.me&&String(pr[1])!==state.me; });
+        if(others.length){ lp.appendChild(el('span',{class:'label'},'Around the league'));
+          lp.appendChild(table([{t:'Matchup'},{t:'Score',r:1},{t:'Projected final',r:1}],others.map(function(pr){ var a=String(pr[0]),b=String(pr[1]),A=D.live.teams[a],B=D.live.teams[b];
+            return {cells:[teamName(a)+' vs '+teamName(b),{t:f1(A.pts)+' \u2013 '+f1(B.pts),num:1},{t:f1(A.proj)+' \u2013 '+f1(B.proj),num:1}]}; }))); }
+        wrap.appendChild(lp);
+      }
+    }
+
     var stand=panel('Standings and team outlook','Lineup strength = best starting lineup by rest-of-season points per game. Dynasty value = all players and picks.');
     var ids=Object.keys(D.teams).sort(function(a,b){ var A=D.teams[a],B=D.teams[b]; return (B.w-A.w)||(B.pf-A.pf); });
     stand.appendChild(table(
@@ -444,7 +475,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     top.appendChild(el('span',{class:'label'},'Your remaining games'));
     top.appendChild(table([{t:'Week',r:1},{t:'Opponent'},{t:'Their record'},{t:'You',r:1},{t:'Them',r:1},{t:'Win chance',r:1}],
       sched.map(function(g){ var o=D.teams[g.opp], c=g.win>=0.6?'m-good':g.win<=0.4?'m-bad':'m-mid';
-        return {cells:[{t:g.week,num:1},teamName(g.opp),o.w+'-'+o.l,{t:f1(g.me),num:1},{t:f1(g.them),num:1},{node:el('span',{class:'chip '+c},Math.round(g.win*100)+'%')}]}; })));
+        return {cells:[{t:g.week+(g.live?' · live':''),num:1},teamName(g.opp),o.w+'-'+o.l,{t:f1(g.me),num:1},{t:f1(g.them),num:1},{node:el('span',{class:'chip '+c},Math.round(g.win*100)+'%')}]}; })));
     var hard=sched.filter(function(g){ return g.win<0.5; });
     if(hard.length) top.appendChild(el('div',{class:'alert'},'Toughest games: '+hard.map(function(g){ return 'Week '+g.week+' vs '+teamName(g.opp)+' ('+Math.round(g.win*100)+'%)'; }).join(', ')+'.'));
     wrap.appendChild(top);

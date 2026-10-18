@@ -205,6 +205,10 @@ SUITE.find = function (D, me, opts) {
   return res.slice(0, opts.limit || 10);
 };
 
+
+// ---------- live week: actual points so far + projected remainder
+SUITE.liveTeam = function (D, t, w) { var L = D.live; return (L && L.week === w && L.teams && L.teams[String(t)]) ? L.teams[String(t)] : null; };
+SUITE.gameScore = function (D, means, t, w, gauss, sd) { var L = SUITE.liveTeam(D, t, w); return L ? L.proj + gauss() * L.sd : means[t][w] + gauss() * sd; };
 // ---------- season simulation (playoff odds)
 SUITE.weekMeans = function (D) {
   var teams = Object.keys(D.teams), means = {};
@@ -234,7 +238,7 @@ SUITE.simulate = function (D, n) {
     for (var w = D.week; w <= end; w++) {
       (D.lsched[String(w)] || []).forEach(function (pair) {
         var a = String(pair[0]), b = String(pair[1]);
-        var sa = means[a][w] + gauss() * sd, sb = means[b][w] + gauss() * sd;
+        var sa = SUITE.gameScore(D, means, a, w, gauss, sd), sb = SUITE.gameScore(D, means, b, w, gauss, sd);
         PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
       });
     }
@@ -251,8 +255,11 @@ SUITE.mySchedule = function (D, me, sim) {
     var pair = (D.lsched[String(w)] || []).filter(function (p) { return String(p[0]) === String(me) || String(p[1]) === String(me); })[0];
     if (!pair) continue;
     var opp = String(pair[0]) === String(me) ? String(pair[1]) : String(pair[0]);
-    var a = sim.means[me][w], b = sim.means[opp][w];
-    out.push({ week: w, opp: opp, me: a, them: b, win: ncdf((a - b) / (sd * Math.SQRT2)) });
+    var La = SUITE.liveTeam(D, me, w), Lb = SUITE.liveTeam(D, opp, w);
+    var a = La ? La.proj : sim.means[me][w], b = Lb ? Lb.proj : sim.means[opp][w];
+    var spread = (La && Lb) ? Math.sqrt(La.sd * La.sd + Lb.sd * Lb.sd) : sd * Math.SQRT2;
+    var win = spread > 0 ? ncdf((a - b) / spread) : (a > b ? 1 : a < b ? 0 : 0.5);
+    out.push({ week: w, opp: opp, me: a, them: b, win: win, live: !!(La && Lb), nowMe: La && La.pts, nowThem: Lb && Lb.pts });
   }
   return out;
 };
@@ -292,7 +299,7 @@ SUITE.repricePicks = function (D) {
   for (var s = 0; s < n; s++) {
     var W = {}, PF = {}; teams.forEach(function (t) { W[t] = D.teams[t].w; PF[t] = D.teams[t].pf; });
     for (var w = D.week; w <= end; w++) (D.lsched[String(w)] || []).forEach(function (pr) {
-      var a = String(pr[0]), b = String(pr[1]), sa = means[a][w] + gauss() * sd, sb = means[b][w] + gauss() * sd;
+      var a = String(pr[0]), b = String(pr[1]), sa = SUITE.gameScore(D, means, a, w, gauss, sd), sb = SUITE.gameScore(D, means, b, w, gauss, sd);
       PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
     });
     teams.slice().sort(function (x, y) { return (W[x] - W[y]) || (PF[x] - PF[y]); }).forEach(function (t, i) { slots[t][i + 1]++; });
@@ -432,7 +439,7 @@ SUITE.playoffs = function (D, n) {
   for (var s = 0; s < n; s++) {
     var W = {}, PF = {}; teams.forEach(function (t) { W[t] = D.teams[t].w; PF[t] = D.teams[t].pf; });
     for (var w = D.week; w <= end; w++) (D.lsched[String(w)] || []).forEach(function (pr) {
-      var a = String(pr[0]), b = String(pr[1]), sa = reg[a][w] + gauss() * sd, sb = reg[b][w] + gauss() * sd;
+      var a = String(pr[0]), b = String(pr[1]), sa = SUITE.gameScore(D, reg, a, w, gauss, sd), sb = SUITE.gameScore(D, reg, b, w, gauss, sd);
       PF[a] += sa; PF[b] += sb; if (sa > sb) W[a]++; else W[b]++;
     });
     var o = teams.slice().sort(function (x, y) { return (W[y] - W[x]) || (PF[y] - PF[x]); });

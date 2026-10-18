@@ -8,7 +8,7 @@ Open `index.html` in a browser. Everything runs in the page; there is no server.
 
 | Tab | What it does |
 |---|---|
-| League Hub | Record, lineup strength, dynasty value rank, A–F position grades, biggest need and surplus, standings for all 12 teams |
+| League Hub | Live scoreboard for the week in progress (score, projected final, win chance, who's still playing), record, lineup strength, dynasty value rank, A–F position grades, biggest need and surplus, standings for all 12 teams |
 | Sit / Start | Best Week lineup by slot, compared with your current Sleeper lineup; two-player comparison |
 | Season | Playoff odds for every team, your win chance each remaining week, and a projected playoff bracket with title odds |
 | Matchups | Fantasy points each defense allows per position (league scoring), and your starters' matchup scores |
@@ -28,7 +28,7 @@ Open `index.html` in a browser. Everything runs in the page; there is no server.
 ## Refreshing the data
 
 ```bash
-./scripts/fetch_data.sh          # pulls Sleeper data into raw/ (not committed)
+./scripts/fetch_data.sh          # pulls Sleeper data (incl. live scores and game clocks) into raw/ (not committed)
 python3 scripts/build_data.py    # writes data/data.json
 python3 scripts/build.py         # writes index.html
 ```
