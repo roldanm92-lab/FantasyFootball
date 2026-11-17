@@ -117,8 +117,10 @@ def from_score(pid):
 # recalibrate DP->value on players that have a score-based value
 pairs=[(from_score(k),dpf[k]) for k in dpf if dpf[k]>50 and k not in fc and from_score(k)]
 import numpy as np
-xs=np.log([p[1] for p in pairs]); ys=np.log([p[0] for p in pairs]); DPB,DPA=np.polyfit(xs,ys,1)
-print('DP refit on',len(pairs),'players: log v = %.3f + %.3f log dp'%(DPA,DPB))
+if len(pairs)>=20:
+    xs=np.log([p[1] for p in pairs]); ys=np.log([p[0] for p in pairs]); DPB,DPA=np.polyfit(xs,ys,1)
+else: DPA,DPB=5.391,0.258   # last fit, used when the market feed already covers nearly everyone
+print('DP fit on',len(pairs),'players: log v = %.3f + %.3f log dp'%(DPA,DPB))
 def tep(pid):
     # TE premium: raise a TE's market value by the share the extra 0.5/catch adds to his scoring
     if (P.get(pid) or {}).get('position')!='TE': return 1
