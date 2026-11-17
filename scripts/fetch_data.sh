@@ -18,4 +18,7 @@ for w in $(seq 1 18); do curl -sS -o raw/m$w.json https://api.sleeper.app/v1/lea
 for w in $(seq 1 "$WEEK"); do curl -sS -o raw/tx$w.json https://api.sleeper.app/v1/league/$LEAGUE/transactions/$w; done
 curl -sS -o raw/schedule.json https://api.sleeper.app/schedule/nfl/regular/$SEASON
 curl -sS -o raw/scores.json https://api.sleeper.app/scores/nfl/regular/$SEASON/$WEEK
+# Dynasty market values (12-team superflex PPR). Not fatal: the build falls back to data/values.json.
+rm -f raw/fc.json
+curl -sSf -m 60 -o raw/fc.json "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=2&numTeams=12&ppr=1" || echo "WARNING: could not reach FantasyCalc; keeping saved values"
 echo "Fetched data through week $WEEK. Next: python3 scripts/build_data.py && python3 scripts/build.py"

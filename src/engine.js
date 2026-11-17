@@ -77,7 +77,13 @@ var ENGINE = (function () {
     var out = side(give, theirLine);   // what the partner receives, judged by their lineup
     var inn = side(get, myLine);       // what I receive, judged by my lineup
     var total = inn.net + out.net;
-    var edge = total ? (inn.net / total) * 100 : 50;
+    var valueEdge = total ? (inn.net / total) * 100 : 50;
+    // Win-now: contenders weigh what the deal does to their weekly lineup.
+    var myBase = myBefore.ppg, lr = 1;
+    Object.keys(rosters).forEach(function (t) { if (String(t) !== String(me) && lineup(rosters[t]).ppg > myBase) lr++; });
+    var winWeight = lr <= 4 ? 0.4 : lr <= 8 ? 0.2 : 0;
+    var winEdge = total ? Math.max(30, Math.min(70, 50 + 5 * (myLine.ppg - myBase))) : 50;
+    var edge = valueEdge * (1 - winWeight) + winEdge * winWeight;
 
     var impact = POS.map(function (pos) {
       var b = {}, a = {};
@@ -106,7 +112,7 @@ var ENGINE = (function () {
     }
 
     return {
-      edge: edge, verdict: verdict(edge), give: out, get: inn,
+      edge: edge, valueEdge: valueEdge, winEdge: winEdge, winWeight: winWeight, lineupRank: lr, verdict: verdict(edge), give: out, get: inn,
       netValue: inn.net - out.net,
       lineupBefore: myBefore.ppg, lineupAfter: myLine.ppg,
       impact: impact, byes: byes,

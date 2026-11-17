@@ -166,7 +166,6 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     <button role="tab" data-tab="hub">League Hub</button>
     <button role="tab" data-tab="lineup">Sit / Start</button>
     <button role="tab" data-tab="season">Season</button>
-    <button role="tab" data-tab="matchups">Matchups</button>
     <button role="tab" data-tab="rankings">Rankings</button>
     <button role="tab" data-tab="waivers">Waivers &amp; Injuries</button>
     <button role="tab" data-tab="finder">Trade Finder</button>
@@ -176,7 +175,6 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   <section id="tab-hub" class="tabpane" hidden></section>
   <section id="tab-lineup" class="tabpane" hidden></section>
   <section id="tab-season" class="tabpane" hidden></section>
-  <section id="tab-matchups" class="tabpane" hidden></section>
   <section id="tab-waivers" class="tabpane" hidden></section>
   <section id="tab-rankings" class="tabpane" hidden></section>
   <section id="tab-finder" class="tabpane" hidden></section>
@@ -211,17 +209,18 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     <details>
       <summary>How the numbers work</summary>
       <div class="explain" style="margin-top:6px">
-        <p><strong>Projections.</strong> Sleeper's weekly projections for weeks 6–18, re-scored with MVP FOOTBALL settings: full PPR, 6-pt passing TDs, +0.5 per TE catch, and expected 100/200-yd and 300/400-yd bonuses. Past games use actual stats with the same scoring.</p>
+        <p><strong>Projections.</strong> Sleeper's weekly projections for the rest of the season, re-scored with MVP FOOTBALL settings: full PPR, 6-pt passing TDs, +0.5 per TE catch, expected 100/200-yd and 300/400-yd bonuses, and expected 40+ yard TD bonuses (from this season's share of TDs that went 40+). A player listed Questionable has this week's projection cut 25% and Doubtful 75%, matching how often they have actually played. Past games use actual stats with the same scoring.</p>
         <p><strong>Rankings.</strong> Value over replacement. Replacement level at each position is set by how many players the 12 teams actually start there (superflex and both flex spots included).</p>
-        <p><strong>Matchups.</strong> Fantasy points each defense has allowed per game to each position in all games played so far this season, in your league's scoring. Matchup score runs 10 (toughest) to 100 (softest).</p>
-        <p><strong>Trade value.</strong> Dynasty market values for 12-team superflex PPR (FantasyCalc). Values marked <em>est</em> are outside that feed's top 100 and estimated from DynastyProcess values on the same scale. 2nd and 3rd round pick values are estimates.</p>
-        <p><strong>Trade grade.</strong> A player who would not start for his new team counts 30% less. Trade edge is value received divided by all value in the deal: 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass.</p>
+        <p><strong>Matchups.</strong> The old matchup score was removed. Tested against real results, it did not predict who beat their projection, because the projections already account for the opponent. The accuracy log below keeps tracking it and it will only come back if it starts to predict.</p>
+        <p><strong>Trade value.</strong> Dynasty market values for 12-team superflex PPR (FantasyCalc), pulled fresh on every refresh for every player and pick in the feed. Tight ends are raised for this league's TE premium, by the share the extra half point per catch adds to each one's scoring (capped at 25%). Values marked <em>est</em> are not in the feed and are estimated.</p>
+        <p><strong>Trade grade.</strong> A player who would not start for his new team counts 30% less. Value edge is value received divided by all value in the deal. Win-now edge is 50% plus 5 points for every point per week the deal adds to your best lineup (limited to 30–70%). The trade edge blends the two by where your lineup ranks: top 4 teams 60% value and 40% win-now, ranks 5–8 80/20, ranks 9–12 value only. 55%+ Strong Accept, 52–55% Lean Accept, 48–52% Fair, 45–48% Lean Pass, under 45% Strong Pass. Trade Finder still screens deals on value edge alone. The 30% bench cut, the cutoffs and the blend weights are judgment calls, not tested numbers.</p>
         <p><strong>Season outlook.</strong> Each team’s weekly score is its best projected lineup for that week (byes included) plus random variation sized from this league’s actual scores so far this season. The rest of the regular season is played out thousands of times; playoff odds are the share of runs a team finishes in the top 6.</p>
         <p><strong>Playoff bracket.</strong> Sleeper\u2019s 6-team format: seeds 3v6 and 4v5 in Week 15, the 1 seed plays the 4/5 winner and the 2 seed the 3/6 winner in Week 16, final in Week 17. The bracket shown is the single most likely path; title odds come from playing out every simulated season, so they include the chance seeds land differently.</p>
         <p><strong>Waivers.</strong> A pickup counts as helping now only if he would make your best lineup. The suggested drop is the bench player with the least trade value and rest-of-season output.</p>
         <p><strong>Trade Finder.</strong> Tests every 1-for-1, 2-for-1 and 1-for-2 deal between your top players and 1st/2nd-round picks and each team's top players. It keeps deals graded 48–60% for you, so the other side is not asked to take a lopsided loss. Position rooms are ranked by your top 2 QB, 3 RB, 4 WR and 1 TE.</p><p><strong>FAAB.</strong> Remaining waiver budget can be added to either side of a trade. Its value per dollar defaults to the median of this league\u2019s winning bids of $10 or more, divided into the bought player\u2019s trade value; change it in the Trade Analyzer. Trade Finder can use FAAB to even out deals that would otherwise land just outside the fair range.</p>
         <p><strong>2027 picks.</strong> Valued by where the original team is projected to finish in the season simulation, assuming the rookie draft goes in reverse order of final standings. Picks 1\u20134 are early, 5\u20138 mid, 9\u201312 late.</p>
-        <p><strong>Estimated values.</strong> Players outside the market feed's top 100 are estimated from RotoBot's league-wide player scores where available (fit to market values), otherwise from DynastyProcess values.</p>
+        <p><strong>Estimated values.</strong> Players missing from the market feed are estimated from RotoBot's league-wide player scores where available (fit to market values), otherwise from DynastyProcess values.</p>
+        <div id="acclog" style="display:grid;gap:8px"></div>
         <p id="asof"></p>
       </div>
     </details>
@@ -252,7 +251,6 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   function pickLabel(k){ return k.s+' '+['','1st','2nd','3rd'][k.rd]+(k.tag?' ('+k.tag+')':'')+(k.orig!=k.o?' · via '+teamName(k.orig):''); }
   function ppg(p){ return p.g?p.r/p.g:0; }
   function nameBtn(p){ var b=el('button',{type:'button',class:'linkish'},p.n); b.addEventListener('click',function(){ openPlayer(p.id); }); var w=el('span'); w.appendChild(b); if(p.inj) w.appendChild(el('span',{class:'inj'},p.inj)); return w; }
-  function mchip(p){ var m=SUITE.matchup(D,p); if(!m) return el('span',{class:'muted small'},p.p==='DEF'?(p.op?'vs '+p.op:''):'—'); var c=m.score>=65?'m-good':m.score<=35?'m-bad':'m-mid'; return el('span',{class:'chip '+c,title:p.op+' allows '+m.pg+' pts/g to '+p.p},String(m.score)); }
   function table(head, rows, opts){
     var tw=el('div',{class:'tw'}), t=el('table'), hr=el('tr');
     head.forEach(function(h){ hr.appendChild(el('th',h.r?{class:'r'}:null,h.t)); }); t.appendChild(hr);
@@ -265,7 +263,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   // ---------- header
   document.getElementById('leagueName').textContent=D.league.name+' · Sleeper';
   ['12 teams','Dynasty','Superflex','Full PPR','6-pt pass TD','TE +0.5','Yardage bonuses','Week '+D.week].forEach(function(t){ document.getElementById('leagueTags').appendChild(el('span',{class:'tag'},t)); });
-  document.getElementById('asof').textContent='Data pulled '+D.asofLabel+' from Sleeper (rosters, lineups, projections, stats), FantasyCalc and DynastyProcess (values). Ask Claude to refresh it.';
+  document.getElementById('asof').textContent='Data pulled '+D.asofLabel+' from Sleeper (rosters, lineups, projections, stats), FantasyCalc (values, '+((D.values&&D.values.asof)||'date unknown')+'; '+((D.values&&D.values.n)||0)+' players). The GitHub site refreshes itself every morning, plus Thursday evening and Sunday before kickoff.';
   var meSel=document.getElementById('me');
   Object.keys(D.teams).forEach(function(id){ meSel.appendChild(el('option',{value:id},teamName(id)+(D.teams[id].name&&D.teams[id].name!==D.teams[id].user?' ('+D.teams[id].name.trim()+')':''))); });
   meSel.value=state.me;
@@ -338,8 +336,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
 
     var ros=panel('Your roster','Sorted by dynasty value. Tap a name for the full player card.');
     var mine=D.players.filter(function(p){ return String(p.o)===state.me && p.p!=='DEF'; }).sort(function(a,b){ return b.v-a.v; });
-    ros.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Age',r:1},{t:'Value',r:1},{t:'ROS pts',r:1},{t:'Wk '+D.week,r:1},{t:'Matchup',r:1},{t:'Starting'}],
-      mine.map(function(p){ return {cells:[p.p,{node:nameBtn(p)},{t:p.a||'',num:1},{t:fmt(p.v)+(p.s==='est'?'*':''),num:1},{t:fmt(p.r),num:1},{t:f1(p.w),num:1},{node:mchip(p)},p.st?'Yes':'']}; })));
+    ros.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Age',r:1},{t:'Value',r:1},{t:'ROS pts',r:1},{t:'Wk '+D.week,r:1},{t:'Opp'},{t:'Starting'}],
+      mine.map(function(p){ return {cells:[p.p,{node:nameBtn(p)},{t:p.a||'',num:1},{t:fmt(p.v)+(p.s==='est'?'*':''),num:1},{t:fmt(p.r),num:1},{t:f1(p.w),num:1},p.op||'BYE',p.st?'Yes':'']}; })));
     ros.appendChild(el('span',{class:'muted small'},'* estimated value'));
     wrap.appendChild(ros);
   }
@@ -371,7 +369,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
       if(s.p){ mid.appendChild(nameBtn(s.p)); mid.appendChild(el('div',{class:'sub'},s.p.p+' · '+s.p.t+(s.p.op?' vs '+s.p.op:'')+(s.p.st?'':' · not in your Sleeper lineup'))); }
       else mid.appendChild(el('span',{class:'muted'},'Empty'));
       row.appendChild(mid);
-      row.appendChild(s.p?mchip(s.p):el('span'));
+      row.appendChild(el('span',{class:'muted small'},s.p?(s.p.op?'vs '+s.p.op:'BYE'):''));
       row.appendChild(el('span',{class:'num'},s.p?f1(s.p.w):''));
       slots.appendChild(row);
     });
@@ -380,8 +378,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
 
     var bench=panel('Bench','Projected points this week, best first.');
     var bl=ss.roster.filter(function(p){ return !ss.best.ids[p.id]; }).sort(function(a,b){ return b.w-a.w; });
-    bench.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Opp'},{t:'Matchup',r:1},{t:'Proj',r:1},{t:'Last 5 avg',r:1}],
-      bl.map(function(p){ var f=SUITE.form(p); return {cells:[p.p,{node:nameBtn(p)},p.op||'BYE',{node:mchip(p)},{t:f1(p.w),num:1},{t:f?f1(f.avg):'—',num:1}]}; })));
+    bench.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Opp'},{t:'Proj',r:1},{t:'Last 5 avg',r:1}],
+      bl.map(function(p){ var f=SUITE.form(p); return {cells:[p.p,{node:nameBtn(p)},p.op||'BYE',{t:f1(p.w),num:1},{t:f?f1(f.avg):'—',num:1}]}; })));
     wrap.appendChild(bench);
 
     // compare
@@ -393,36 +391,14 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     cmp.appendChild(row);
     var A=byId[state.cmpA], B=byId[state.cmpB];
     if(A&&B){
-      var fa=SUITE.form(A), fb=SUITE.form(B), ma=SUITE.matchup(D,A), mb=SUITE.matchup(D,B);
-      function lines(p,f,m){ return [p.n, p.op?p.t+' vs '+p.op:'Bye', f1(p.w), m?m.score+' ('+ord(33-m.tough)+' softest)':'—', f?f1(f.avg):'—', f?f1(f.lo)+' – '+f1(f.hi):'—', f1(ppg(p))]; }
-      var la=lines(A,fa,ma), lb=lines(B,fb,mb), labels=['Player','Game','Week '+D.week+' projection','Matchup score','Last 5 avg','Range (last 5)','ROS pts/game'];
+      var fa=SUITE.form(A), fb=SUITE.form(B);
+      function lines(p,f){ return [p.n, p.op?p.t+' vs '+p.op:'Bye', f1(p.w)+(p.qd?' (cut for '+p.inj+')':''), f?f1(f.avg):'—', f?f1(f.lo)+' – '+f1(f.hi):'—', f1(ppg(p))]; }
+      var la=lines(A,fa), lb=lines(B,fb), labels=['Player','Game','Week '+D.week+' projection','Last 5 avg','Range (last 5)','ROS pts/game'];
       cmp.appendChild(table([{t:''},{t:'A'},{t:'B'}], labels.map(function(l,i){ return {cells:[{node:el('span',{class:'label'},l)},la[i],lb[i]]}; })));
-      var diff=A.w-B.w, pick=Math.abs(diff)<0.8?'Too close to call on projections. Lean on the better matchup: '+((ma?ma.score:0)>=(mb?mb.score:0)?A.n:B.n)+'.':'Start '+(diff>0?A.n:B.n)+', projected '+f1(Math.abs(diff))+' points better.';
+      var diff=A.w-B.w, pick=Math.abs(diff)<0.8?'Too close to call on projections. Go with the higher rest-of-season points per game: '+(ppg(A)>=ppg(B)?A.n:B.n)+'.':'Start '+(diff>0?A.n:B.n)+', projected '+f1(Math.abs(diff))+' points better.';
       cmp.appendChild(el('div',{class:'alert'},pick));
     }
     wrap.appendChild(cmp);
-  }
-
-  // ---------- Matchups
-  function renderMatchups(){
-    var root=document.getElementById('tab-matchups'); root.innerHTML='';
-    var wrap=el('div',{style:'display:grid;gap:16px'}); root.appendChild(wrap);
-    var ss=SUITE.sitStart(D,state.me);
-    var mine=panel('Your starters this week','Matchup score 10 = toughest defense for that position, 100 = softest.');
-    var starters=ss.roster.filter(function(p){ return ss.best.ids[p.id] && p.p!=='DEF'; }).sort(function(a,b){ var ma=SUITE.matchup(D,a),mb=SUITE.matchup(D,b); return (mb?mb.score:0)-(ma?ma.score:0); });
-    mine.appendChild(table([{t:'Pos'},{t:'Player'},{t:'Opp'},{t:'Score',r:1},{t:'Pts allowed/g',r:1},{t:'Defense rank'}],
-      starters.map(function(p){ var m=SUITE.matchup(D,p); return {cells:[p.p,{node:nameBtn(p)},p.op||'BYE',{node:mchip(p)},{t:m?f1(m.pg):'—',num:1},m?ord(m.tough)+' toughest':'—']}; })));
-    wrap.appendChild(mine);
-
-    var dv=panel('Points allowed by position','Per game, weeks 1\u2013'+(D.week-1)+', in your league\u2019s scoring. Green is soft, red is tough.');
-    var teams=Object.keys(D.dvp).sort();
-    var ext={}; SUITE.POS.forEach(function(pos){ var xs=teams.map(function(t){ return D.dvp[t][pos].pg; }); ext[pos]=[Math.min.apply(null,xs),Math.max.apply(null,xs)]; });
-    var tw=el('div',{class:'tw'}), t=el('table'), hr=el('tr');
-    ['Defense','QB','RB','WR','TE','Next opp week '+D.week].forEach(function(h,i){ hr.appendChild(el('th',i&&i<5?{class:'r'}:null,h)); }); t.appendChild(hr);
-    teams.forEach(function(team){ var tr=el('tr'); tr.appendChild(el('td',null,team));
-      SUITE.POS.forEach(function(pos){ var v=D.dvp[team][pos].pg, e=ext[pos], f=(v-e[0])/(e[1]-e[0]); var td=el('td',{class:'heat',title:ord(D.dvp[team][pos].tough)+' toughest vs '+pos},f1(v)); td.style.background='color-mix(in srgb, var(--heat-hi) '+Math.round(f*100)+'%, var(--heat-lo))'; tr.appendChild(td); });
-      var opp=(D.sched[team]||{})[String(D.week)]; tr.appendChild(el('td',{class:'muted'},opp?'faces '+opp:'bye')); t.appendChild(tr); });
-    tw.appendChild(t); dv.appendChild(tw); wrap.appendChild(dv);
   }
 
   // ---------- Rankings
@@ -695,7 +671,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     var nd=el('span',{class:'needle'}); nd.style.left=Math.max(1,Math.min(99,res.edge))+'%'; g.appendChild(nd); call.appendChild(g);
     var sc=el('div',{class:'gauge-scale'}); ['Favors them','50%','Favors you'].forEach(function(t){ sc.appendChild(el('span',null,t)); }); call.appendChild(sc);
     var st=el('div',{class:'stats'}); var dl=res.lineupAfter-res.lineupBefore;
-    st.appendChild(stat('Trade edge',f1(res.edge)+'%')); st.appendChild(stat('Net value',(res.netValue>=0?'+':'')+fmt(res.netValue),res.netValue>=0?'up':'down')); st.appendChild(stat('Lineup, pts/wk',(dl>=0?'+':'')+f1(dl),dl>=0?'up':'down'));
+    st.appendChild(stat('Trade edge',f1(res.edge)+'%')); st.appendChild(stat('Value edge',f1(res.valueEdge)+'%')); st.appendChild(stat('Win-now edge ('+Math.round(res.winWeight*100)+'% weight)',f1(res.winEdge)+'%')); st.appendChild(stat('Net value',(res.netValue>=0?'+':'')+fmt(res.netValue),res.netValue>=0?'up':'down')); st.appendChild(stat('Lineup, pts/wk',(dl>=0?'+':'')+f1(dl),dl>=0?'up':'down'));
     call.appendChild(st);
     var bits=[];
     if(res.give.penalty) bits.push(fmt(res.give.penalty)+' taken off what you send: '+res.give.benched.map(function(a){return a.n;}).join(', ')+' would not start for '+teamName(state.partner)+'.');
@@ -728,7 +704,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     if(p.p!=='DEF'){ st.appendChild(stat('Dynasty value',fmt(p.v)+(p.s==='est'?' est':''))); st.appendChild(stat('Overall rank',R?'#'+R.rank+' · '+R.posRank:'—')); }
     st.appendChild(stat('ROS pts/game',f1(ppg(p)))); st.appendChild(stat('Week '+D.week,f1(p.w)+(p.op?' vs '+p.op:'')));
     sh.appendChild(st);
-    var m=SUITE.matchup(D,p); if(m) sh.appendChild(el('div',{class:'alert'},'Week '+D.week+' matchup score '+m.score+'. '+p.op+' allows '+m.pg+' pts/game to '+p.p+'s, '+ord(m.tough)+' toughest in the league.'));
+    if(p.tep&&p.tep>1) sh.appendChild(el('div',{class:'alert'},'Trade value includes a +'+Math.round((p.tep-1)*100)+'% TE-premium bump.')); if(p.qd) sh.appendChild(el('div',{class:'alert'},'Listed '+p.inj+': this week\u2019s projection is cut '+Math.round((1-p.qd)*100)+'%.'));
     // game log bars
     sh.appendChild(el('span',{class:'label'},'Weeks '+(D.logStart||1)+'\u2013'+(D.week-1)+' and Week '+D.week+' projection (your scoring)'));
     var vals=(p.log||[]).concat([p.w]), mx=Math.max.apply(null,vals.map(function(v){return v||0;}).concat([1]));
@@ -742,7 +718,15 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
     root.appendChild(bg); root.appendChild(sh); cb.focus();
   }
 
-  function renderAll(){ HUB=SUITE.hub(D); renderHub(); renderLineup(); renderSeason(); renderMatchups(); renderWaivers(); renderRankings(); renderFinder(); renderTrade(); }
+  function renderAcc(){
+    var root=document.getElementById('acclog'); if(!root) return; root.innerHTML=''; var A=D.acc||[]; if(!A.length) return;
+    var ap=el('p'); ap.appendChild(el('strong',null,'Accuracy log. ')); ap.appendChild(document.createTextNode('Projections saved before each game, checked against what players actually scored. Miss = average points off per player. Last-5 miss = the same test for a plain last-five-games average. Start/sit = how often the higher-projected of two same-position teammates outscored the other. Matchup link = correlation between the old matchup score and beating the projection (0 = no link).')); root.appendChild(ap);
+    function tot(k){ return A.reduce(function(s,a){ return s+a[k]; },0); }
+    var n=tot('n'), rows=A.map(function(a){ return {cells:['Wk '+a.w,{t:String(a.n),num:1},{t:f1(a.mae),num:1},{t:a.base==null?'\u2014':f1(a.base),num:1},{t:(a.bias>=0?'+':'')+f1(a.bias),num:1},{t:a.pt?Math.round(100*a.pok/a.pt)+'%':'\u2014',num:1},{t:a.fn?a.fok+' of '+a.fn:'\u2014',num:1},{t:a.mc==null?'\u2014':a.mc.toFixed(2),num:1}]}; });
+    rows.push({cells:['All',{t:String(n),num:1},{t:f1(A.reduce(function(s,a){return s+a.mae*a.n;},0)/n),num:1},{t:f1(A.reduce(function(s,a){return s+(a.base==null?a.mae:a.base)*a.n;},0)/n),num:1},{t:'',num:1},{t:Math.round(100*tot('pok')/Math.max(1,tot('pt')))+'%',num:1},{t:tot('fok')+' of '+tot('fn'),num:1},{t:'',num:1}]});
+    root.appendChild(table([{t:'Week'},{t:'Players',r:1},{t:'Miss',r:1},{t:'Last-5 miss',r:1},{t:'Bias',r:1},{t:'Start/sit',r:1},{t:'Favorites won',r:1},{t:'Matchup link',r:1}],rows));
+  }
+  function renderAll(){ HUB=SUITE.hub(D); renderHub(); renderLineup(); renderSeason(); renderWaivers(); renderAcc(); renderRankings(); renderFinder(); renderTrade(); }
 
   // start
   fillPartners();
@@ -750,8 +734,8 @@ details summary{cursor:pointer;font-weight:600;color:var(--ink)}
   if(ex&&mine){ state.partner=String(ex.o); ptSel.value=state.partner; state.give=[mine.id]; state.get=[ex.id]; note('Example: the Collins-for-Nacua trade you ran in RotoBot.'); }
   renderAll();
   var startTab='hub', h=(location.hash||'').replace('#','');
-  try{ var saved=localStorage.getItem('mvp-tab'); if(saved) startTab=saved; }catch(e){}
-  if(['hub','lineup','season','matchups','waivers','rankings','finder','trade'].indexOf(h)>=0) startTab=h;
+  try{ var saved=localStorage.getItem('mvp-tab'); if(saved&&document.getElementById('tab-'+saved)) startTab=saved; }catch(e){}
+  if(['hub','lineup','season','waivers','rankings','finder','trade'].indexOf(h)>=0) startTab=h;
   showTab(startTab);
 })();
 </script>

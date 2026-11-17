@@ -1,0 +1,53 @@
+name: Refresh data
+
+# Rebuilds the site from live Sleeper data and current market values.
+# Times are UTC. Eastern Standard Time is UTC-5.
+on:
+  schedule:
+    - cron: '23 13 * * *'   # every day, about 8:23 AM ET
+    - cron: '41 23 * * 4'   # Thursday, about 6:41 PM ET (before Thursday night kickoff)
+    - cron: '37 16 * * 0'   # Sunday, about 11:37 AM ET (after inactives are announced)
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/**', 'src/**', '.github/workflows/refresh.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy
+      - name: Skip outside the regular season
+        id: season
+        run: |
+          t=$(curl -sS https://api.sleeper.app/v1/state/nfl | python3 -c 'import json,sys;print(json.load(sys.stdin)["season_type"])')
+          echo "type=$t" >> "$GITHUB_OUTPUT"
+      - name: Fetch and build
+        if: steps.season.outputs.type == 'regular'
+        run: |
+          ./scripts/fetch_data.sh
+          python3 scripts/build_data.py
+          python3 scripts/build.py
+          node scripts/smoke.js
+      - name: Publish
+        if: steps.season.outputs.type == 'regular'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data index.html
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Auto-refresh data, $(TZ=America/New_York date '+%b %d %-I:%M %p ET')"
+          git pull --rebase origin main
+          git push origin HEAD:main
