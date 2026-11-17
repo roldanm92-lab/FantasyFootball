@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1624">
 <title>MVP Trade Lab</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -147,6 +152,43 @@ td.heat{font-family:var(--f-mono);text-align:right}
 .explain p{margin:0}
 details summary{cursor:pointer;font-weight:600;color:var(--ink)}
 @media (prefers-reduced-motion:no-preference){.needle{transition:left .35s ease}}
+/* phones */
+.tabpane,.tabpane>*,.tabpane>*>*{min-width:0}
+.wrap>*{min-width:0}
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+select,input{max-width:100%}
+@media (max-width:640px){
+  body{font-size:15px}
+  .wrap{padding-block:12px 32px;gap:12px;padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+  h1{font-size:28px}
+  header{align-items:stretch}
+  header .league{width:100%}
+  header .league select{flex:1}
+  .panel{padding:12px}
+  /* 16px stops iPhones zooming in when a field is tapped */
+  select,input[type="text"],input[type="number"],input:not([type]){font-size:16px;min-height:44px}
+  button{min-height:44px}
+  .x,.linkish{min-height:0}
+  input[type="checkbox"]{width:22px;height:22px;flex:none}
+  .row{flex-direction:column;align-items:stretch}
+  .row .field,.row .field select,.row .field input,.row>button{width:100%;box-sizing:border-box}
+  nav.tabs{position:sticky;top:0;z-index:10;background:var(--bg);margin-inline:-10px;padding-inline:10px;scrollbar-width:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs button{padding:12px 10px;font-size:17px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat b{font-size:17px}
+  table{font-size:14px}
+  th,td{padding:9px 8px}
+  .tw{margin-inline:-12px;padding-inline:12px;-webkit-overflow-scrolling:touch}
+  .asset{grid-template-columns:34px minmax(0,1fr) auto auto;gap:8px}
+  .shoplist{grid-template-columns:1fr;max-height:320px}
+  .shoplist label{font-size:15px;min-height:36px}
+  .faabrow input{width:110px}
+  .live .big{font-size:24px}
+  .badge{font-size:26px}
+  .menu button{min-height:44px}
+}
 </style>
 
 <div class="wrap">
@@ -1118,10 +1160,18 @@ SUITE.playoffs = function (D, n) {
     ms.value=state.fmode; ms.addEventListener('change',function(){ state.fmode=ms.value; state.finder=null; renderFinder(); }); mf.appendChild(ms); row.appendChild(mf);
     var sub=el('div',{class:'field'});
     if(state.fmode==='position'){ sub.appendChild(el('label',{class:'label',for:'fpos'},'Position')); var ps=el('select',{id:'fpos'}); SUITE.POS.forEach(function(pos){ ps.appendChild(el('option',{value:pos},pos+' (you rank '+ord(N.ranks[pos])+')')); }); ps.value=state.fpos; ps.addEventListener('change',function(){ state.fpos=ps.value; state.finder=null; renderFinder(); }); sub.appendChild(ps); row.appendChild(sub); }
-    if(state.fmode==='target'){ sub.appendChild(el('label',{class:'label',for:'ftarget'},'Player or pick to get')); var ts=el('select',{id:'ftarget'});
-      var tl=D.players.filter(function(x){ return x.o && String(x.o)!==state.me && x.p!=='DEF' && x.v>=300; }).concat(D.picks.filter(function(k){ return String(k.o)!==state.me && k.rd<=2; })).sort(function(a,b){ return b.v-a.v; });
-      tl.forEach(function(x){ ts.appendChild(el('option',{value:x.id},x.kind==='pick'?'PK · '+pickLabel(x)+' · '+teamName(x.o):x.p+' · '+x.n+' · '+teamName(x.o))); });
-      if(!state.ftarget||!byId[state.ftarget]||String(byId[state.ftarget].o)===state.me) state.ftarget=ts.options[0]&&ts.options[0].value; ts.value=state.ftarget; ts.addEventListener('change',function(){ state.ftarget=ts.value; state.finder=null; renderFinder(); }); sub.appendChild(ts); row.appendChild(sub); }
+    if(state.fmode==='target'){
+      var all=D.players.filter(function(x){ return x.o && String(x.o)!==state.me && x.p!=='DEF' && x.v>=300; }).concat(D.picks.filter(function(k){ return String(k.o)!==state.me && k.rd<=2; })).sort(function(a,b){ return b.v-a.v; });
+      var tf=el('div',{class:'field'}); tf.appendChild(el('label',{class:'label',for:'fteam'},'Team')); var tms=el('select',{id:'fteam'}); tms.appendChild(el('option',{value:''},'All teams'));
+      Object.keys(D.teams).filter(function(k){ return k!==state.me; }).sort(function(a,b){ return teamName(a).localeCompare(teamName(b)); }).forEach(function(k){ tms.appendChild(el('option',{value:k},teamName(k))); });
+      if(state.fteam===state.me) state.fteam=''; tms.value=state.fteam||''; tms.addEventListener('change',function(){ state.fteam=tms.value; state.ftarget=null; state.finder=null; renderFinder(); }); tf.appendChild(tms); row.appendChild(tf);
+      var pf=el('div',{class:'field'}); pf.appendChild(el('label',{class:'label',for:'fposf'},'Position')); var pfs=el('select',{id:'fposf'}); [['','All positions'],['QB','QB'],['RB','RB'],['WR','WR'],['TE','TE'],['PK','Picks']].forEach(function(o){ pfs.appendChild(el('option',{value:o[0]},o[1])); });
+      pfs.value=state.fposf||''; pfs.addEventListener('change',function(){ state.fposf=pfs.value; state.ftarget=null; state.finder=null; renderFinder(); }); pf.appendChild(pfs); row.appendChild(pf);
+      var tl=all.filter(function(x){ return (!state.fteam||String(x.o)===state.fteam) && (!state.fposf||(state.fposf==='PK'?x.kind==='pick':x.p===state.fposf)); });
+      sub.appendChild(el('label',{class:'label',for:'ftarget'},'Player or pick to get ('+tl.length+')')); var ts=el('select',{id:'ftarget'});
+      tl.forEach(function(x){ var who=state.fteam?'':' · '+teamName(x.o); ts.appendChild(el('option',{value:x.id},x.kind==='pick'?'PK · '+pickLabel(x)+who:x.p+' · '+x.n+who)); });
+      if(!tl.length) ts.appendChild(el('option',{value:''},'No one matches'));
+      if(!state.ftarget||!tl.some(function(x){ return x.id===state.ftarget; })) state.ftarget=tl[0]?tl[0].id:null; ts.value=state.ftarget||''; ts.addEventListener('change',function(){ state.ftarget=ts.value; state.finder=null; renderFinder(); }); sub.appendChild(ts); row.appendChild(sub); }
     var shopBox=null;
     if(state.fmode==='shop'){
       var mineList=D.players.filter(function(x){ return String(x.o)===state.me && x.p!=='DEF' && x.v>=100; }).concat(D.picks.filter(function(k){ return String(k.o)===state.me; })).sort(function(a,b){ return b.v-a.v; });
@@ -1178,7 +1228,7 @@ SUITE.playoffs = function (D, n) {
     go.addEventListener('click',function(){ go.disabled=true; go.textContent='Searching…'; setTimeout(function(){
       var m=state.fmode;
       if(m==='position') state.finder=SUITE.find(D,state.me,{mode:'position',pos:state.fpos,faab:state.fUseFaab,limit:10});
-      else if(m==='target') state.finder=SUITE.find(D,state.me,{mode:'target',target:byId[state.ftarget],faab:state.fUseFaab,limit:8});
+      else if(m==='target'){ if(!byId[state.ftarget]){ state.finder=null; renderFinder(); return; } state.finder=SUITE.find(D,state.me,{mode:'target',target:byId[state.ftarget],faab:state.fUseFaab,limit:8}); }
       else if(m==='shop'){ if(!state.fshopSet.length){ state.finder=null; renderFinder(); return; } state.finder=SUITE.find(D,state.me,{mode:'shop',shop:state.fshopSet.map(function(i){return byId[i];}),faab:state.fUseFaab,limit:12}); }
       else state.finder=SUITE.finder(D,state.me,{goal:m,limit:10});
       renderFinder(); },30); });
